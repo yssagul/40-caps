@@ -240,23 +240,10 @@ export function setupNetworkHandlers(ui, helpers) {
         localPlayer.failures = pData.failures;
         localPlayer.streak = pData.streak;
 
-        if (pData.impairments !== undefined) {
-          // Full data for self
-          localPlayer.impairments = pData.impairments;
-          localPlayer.onFireBuffs = pData.onFireBuffs;
-          // Clear count fields if present
-          delete localPlayer.impairmentCount;
-          delete localPlayer.buffCount;
-        } else {
-          // Other players: impairments are private (count only), buffs are public
-          localPlayer.impairmentCount = pData.impairmentCount;
-          localPlayer.onFireBuffs = pData.onFireBuffs || [];
-          // Keep impairments as empty array so flicker helpers work
-          // (they won't match since we don't know the IDs)
-          localPlayer.impairments = [];
-          // Clear buffCount since we now have actual buff data
-          delete localPlayer.buffCount;
-        }
+        // All players receive full impairment/buff data (visible to everyone)
+        // Effects only apply to the owning player's UI/turn
+        localPlayer.impairments = pData.impairments || [];
+        localPlayer.onFireBuffs = pData.onFireBuffs || [];
 
         if (pData.connected !== undefined) {
           localPlayer.connected = pData.connected;

@@ -470,60 +470,34 @@ function drawHUD() {
     let bx = x;
     const by = y + 14;
 
-    // Determine if we should show full badge details or anonymous counts
-    const showFull = !State.isOnline || i === State.myPlayerIndex;
-
-    if (showFull) {
-      // Self (or local play): draw actual badges with tooltips
-      for (const impId of p.impairments) {
-        const imp = IMPAIRMENTS.find((imp) => imp.id === impId);
-        if (imp) {
-          bx += drawImpairmentBadge(
-            bx,
-            by,
-            imp.abbr,
-            "#8b2020",
-            imp.name,
-            imp.desc,
-            "impairment",
-          );
-        }
+    // Draw badges for all players (impairments + buffs are visible to everyone;
+    // impairment *effects* only apply to the owning player's UI/turn)
+    for (const impId of (p.impairments || [])) {
+      const imp = IMPAIRMENTS.find((imp) => imp.id === impId);
+      if (imp) {
+        bx += drawImpairmentBadge(
+          bx,
+          by,
+          imp.abbr,
+          "#8b2020",
+          imp.name,
+          imp.desc,
+          "impairment",
+        );
       }
-      for (const buffId of p.onFireBuffs) {
-        const buff = BUFFS.find((b) => b.id === buffId);
-        if (buff) {
-          bx += drawImpairmentBadge(
-            bx,
-            by,
-            buff.abbr,
-            "#b8860b",
-            buff.name,
-            buff.desc,
-            "buff",
-          );
-        }
-      }
-    } else {
-      // Other players in online mode:
-      // Impairments are private — show anonymous count badge
-      const impCount = p.impairmentCount !== undefined ? p.impairmentCount : (p.impairments ? p.impairments.length : 0);
-      if (impCount > 0) {
-        bx += drawAnonymousBadge(bx, by, impCount, "#8b2020");
-      }
-      // Buffs are public — show actual badge with abbreviation
-      for (const buffId of (p.onFireBuffs || [])) {
-        const buff = BUFFS.find((b) => b.id === buffId);
-        if (buff) {
-          bx += drawImpairmentBadge(
-            bx,
-            by,
-            buff.abbr,
-            "#b8860b",
-            buff.name,
-            buff.desc,
-            "buff",
-          );
-        }
+    }
+    for (const buffId of (p.onFireBuffs || [])) {
+      const buff = BUFFS.find((b) => b.id === buffId);
+      if (buff) {
+        bx += drawImpairmentBadge(
+          bx,
+          by,
+          buff.abbr,
+          "#b8860b",
+          buff.name,
+          buff.desc,
+          "buff",
+        );
       }
     }
 

@@ -130,8 +130,8 @@ function sendPrivatePlayerState(room) {
           name: p.name,
           failures: p.failures,
           streak: p.streak,
-          impairmentCount: p.impairments.length,
-          onFireBuffs: [...p.onFireBuffs],  // Buffs are public (visible to all)
+          impairments: [...p.impairments],   // Visible to all (effects only apply to owner)
+          onFireBuffs: [...p.onFireBuffs],   // Visible to all
           connected: p.connected,
         };
       }
