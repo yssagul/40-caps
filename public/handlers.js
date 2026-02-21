@@ -83,7 +83,6 @@ export function setupNetworkHandlers(ui, helpers) {
 
     State.tosserIndex = msg.tosserIndex;
     State.flickerIndex = msg.flickerIndex;
-    State.consecutiveFlicks = 0;
 
     const positions = msg.positions;
     State.tossTargetPositions = positions.map((p) => ({
@@ -183,7 +182,6 @@ export function setupNetworkHandlers(ui, helpers) {
         }
       }
 
-      State.consecutiveFlicks = msg.consecutiveFlicks || 0;
       State.selectedChipIndex = -1;
 
       // Build message
@@ -199,11 +197,7 @@ export function setupNetworkHandlers(ui, helpers) {
         }
       }
 
-      if (msg.consecutiveFlicks === 0 && State.chips.every((c) => c.eligible)) {
-        setMessage("Round complete! Chips stay." + streakMsg);
-      } else {
-        setMessage("Success!" + streakMsg);
-      }
+      setMessage("Success!" + streakMsg);
 
       State.flickerIndex = msg.nextFlickerIndex;
       State.tosserIndex = msg.tosserIndex;
@@ -221,7 +215,6 @@ export function setupNetworkHandlers(ui, helpers) {
       State.selectedChipIndex = -1;
       State.tosserIndex = msg.tosserIndex;
       State.flickerIndex = msg.nextFlickerIndex;
-      State.consecutiveFlicks = 0;
       State.phase = "EVALUATING";
       // Server handles the 1800ms delay and sends request_toss
     }
@@ -308,7 +301,6 @@ export function setupNetworkHandlers(ui, helpers) {
       State.myPlayerIndex = msg.playerIndex;
       State.tosserIndex = msg.tosserIndex;
       State.flickerIndex = msg.flickerIndex;
-      State.consecutiveFlicks = msg.consecutiveFlicks || 0;
 
       // Recreate world
       State.chips = [];

@@ -275,7 +275,6 @@ function handleCreateRoom(ws, clientId, msg) {
     state: "LOBBY",
     tosserIndex: 0,
     flickerIndex: 0,
-    consecutiveFlicks: 0,
     phase: "LOBBY",
     chipPositions: [],
     chipStates: [],
@@ -391,7 +390,6 @@ function handleReconnect(ws, newClientId, msg) {
     flickerIndex: room.flickerIndex,
     chipPositions: room.chipPositions,
     chipStates: room.chipStates,
-    consecutiveFlicks: room.consecutiveFlicks,
   });
 
   sendPrivatePlayerState(room);
@@ -416,7 +414,6 @@ function handleStartGame(ws, clientId) {
   room.state = "PLAYING";
   room.tosserIndex = 0;
   room.flickerIndex = 1 % room.players.length;
-  room.consecutiveFlicks = 0;
   room.phase = "TOSSING";
 
   // Reset all player stats
@@ -577,8 +574,6 @@ function handleFlickResult(ws, clientId, msg) {
       room.chipStates[msg.chipIndex].eligible = false;
     }
 
-    room.consecutiveFlicks++;
-
     let streakEvent = null;
 
     // 5-streak with impairments: cure one
@@ -601,15 +596,6 @@ function handleFlickResult(ws, clientId, msg) {
       flicker.streak = 0;
     }
 
-    // After 2 consecutive flicks, reset eligibility
-    if (room.consecutiveFlicks >= 2) {
-      room.consecutiveFlicks = 0;
-      room.chipStates.forEach((cs) => {
-        cs.flicked = false;
-        cs.eligible = true;
-      });
-    }
-
     // Advance flicker
     room.flickerIndex =
       (room.flickerIndex + 1) % room.players.length;
@@ -623,7 +609,6 @@ function handleFlickResult(ws, clientId, msg) {
       flickerIndex: prevFlickerIndex,
       nextFlickerIndex: room.flickerIndex,
       tosserIndex: room.tosserIndex,
-      consecutiveFlicks: room.consecutiveFlicks,
       chipStates: room.chipStates,
       streakEvent,
       consumedBuffs: buffsUsedThisFlick,
@@ -656,7 +641,6 @@ function handleFlickResult(ws, clientId, msg) {
     room.tosserIndex = room.flickerIndex;
     room.flickerIndex =
       (room.tosserIndex + 1) % room.players.length;
-    room.consecutiveFlicks = 0;
     room.phase = "EVALUATING";
 
     broadcastToRoom(room, {
@@ -797,7 +781,6 @@ function autoAdvanceTurn(room, disconnectedIndex) {
 
   room.tosserIndex = next;
   room.flickerIndex = (next + 1) % room.players.length;
-  room.consecutiveFlicks = 0;
   room.phase = "TOSSING";
 
   sendPrivatePlayerState(room);

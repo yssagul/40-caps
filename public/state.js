@@ -24,7 +24,6 @@ export const State = {
   flickPower: 0,
   oscillator: 0,
   oscillatorDir: 1,
-  consecutiveFlicks: 0,
   passedThroughGate: false,
   touchedGateChip: false,
   hitWall: false,
@@ -279,7 +278,6 @@ export function performToss() {
   }
 
   State.tossAnimStart = performance.now();
-  State.consecutiveFlicks = 0;
   State.phase = "TOSS_ANIMATING";
   setMessage(`${currentTosserName()} tosses the chips!`);
 }
@@ -447,7 +445,6 @@ export function onFlickSuccess() {
   const chip = State.chips[State.selectedChipIndex];
   chip.collider.setCollisionGroups(0x0002ffff);
 
-  State.consecutiveFlicks++;
   State.chips[State.selectedChipIndex].flicked = true;
   State.chips[State.selectedChipIndex].eligible = false;
   State.selectedChipIndex = -1;
@@ -473,21 +470,7 @@ export function onFlickSuccess() {
     player.streak = 0;
   }
 
-  // After 2 successful flicks, reset all chips to eligible for the next cycle
-  if (State.consecutiveFlicks >= 2) {
-    State.consecutiveFlicks = 0;
-    for (const c of State.chips) {
-      c.flicked = false;
-      c.eligible = true;
-    }
-    setMessage("Round complete! Chips stay." + streakMsg);
-  } else {
-    setMessage("Success!" + streakMsg);
-    // Only the just-flicked chip is ineligible
-    for (let i = 0; i < State.chips.length; i++) {
-      State.chips[i].eligible = !State.chips[i].flicked;
-    }
-  }
+  setMessage("Success!" + streakMsg);
 
   // Next player flicks (chips remain where they are)
   State.flickerIndex = (State.flickerIndex + 1) % State.players.length;

@@ -1134,7 +1134,6 @@ function startGameOnline(players, config, tosserIndex, flickerIndex) {
 
   State.tosserIndex = tosserIndex;
   State.flickerIndex = flickerIndex;
-  State.consecutiveFlicks = 0;
   State.phase = "TOSSING";
 
   // Create fresh Rapier world
