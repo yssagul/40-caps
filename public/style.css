@@ -1,0 +1,362 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a1a2e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+#gameContainer {
+  position: relative;
+}
+
+canvas {
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== Setup / Lobby Overlay ===== */
+#setupOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 10, 30, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  z-index: 10;
+  overflow-y: auto;
+}
+
+#setupOverlay h1 {
+  font-size: 2.5em;
+  margin-bottom: 0.3em;
+  color: #ffb703;
+  text-shadow: 0 0 20px rgba(255, 183, 3, 0.3);
+}
+
+#setupOverlay h2 {
+  font-size: 1em;
+  margin-bottom: 1.5em;
+  color: #8899aa;
+  font-weight: normal;
+}
+
+/* Setup views - hidden by default */
+.setup-view {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 360px;
+}
+
+.setup-view.active {
+  display: flex;
+}
+
+.setup-section {
+  margin-bottom: 1em;
+  text-align: center;
+}
+
+.setup-section label {
+  display: block;
+  margin-bottom: 0.3em;
+  font-size: 0.9em;
+  color: #aab;
+}
+
+.setup-section input[type="number"],
+.setup-section input[type="text"] {
+  background: #2a2a4a;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 1em;
+  text-align: center;
+  width: 200px;
+}
+
+/* ===== Menu Buttons ===== */
+.menu-btn {
+  margin-top: 0.6em;
+  padding: 10px 40px;
+  font-size: 1.05em;
+  background: #3a3a5a;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+  width: 220px;
+  text-align: center;
+}
+
+.menu-btn:hover {
+  background: #4a4a6a;
+}
+
+.menu-btn.accent {
+  background: #ffb703;
+  color: #1a1a2e;
+  border: none;
+}
+
+.menu-btn.accent:hover {
+  background: #ffc633;
+}
+
+.menu-btn.small {
+  width: auto;
+  padding: 8px 20px;
+  font-size: 0.95em;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: #6688aa;
+  cursor: pointer;
+  font-size: 0.85em;
+  margin-top: 1.2em;
+  text-decoration: underline;
+}
+
+.back-btn:hover {
+  color: #88aacc;
+}
+
+/* ===== Player Names ===== */
+#playerNamesContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  align-items: center;
+}
+
+#playerNamesContainer input {
+  width: 200px;
+}
+
+/* ===== Advanced Settings ===== */
+#advancedToggle,
+.advanced-toggle-link {
+  background: none;
+  border: none;
+  color: #6688aa;
+  cursor: pointer;
+  font-size: 0.85em;
+  margin: 0.8em 0;
+  text-decoration: underline;
+}
+
+#advancedSettings,
+.advanced-settings-panel {
+  display: none;
+  max-width: 350px;
+  text-align: left;
+  width: 100%;
+}
+
+#advancedSettings.visible,
+.advanced-settings-panel.visible {
+  display: block;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 0;
+  font-size: 0.82em;
+}
+
+.slider-row label {
+  flex: 1;
+  color: #99a;
+}
+
+.slider-row input[type="range"] {
+  width: 120px;
+  margin: 0 8px;
+}
+
+.slider-row .slider-value {
+  width: 40px;
+  text-align: right;
+  color: #ccd;
+  font-family: monospace;
+}
+
+/* ===== Online Play ===== */
+.divider-text {
+  margin: 1em 0 0.6em;
+  font-size: 0.8em;
+  color: #667;
+}
+
+.join-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+#roomCodeInput {
+  width: 100px;
+  font-size: 1.2em;
+  text-align: center;
+  letter-spacing: 0.25em;
+  font-family: monospace;
+  background: #2a2a4a;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.error-msg {
+  color: #e05555;
+  font-size: 0.85em;
+  margin-top: 0.6em;
+  min-height: 1.2em;
+}
+
+/* ===== Waiting Room / Lobby ===== */
+#roomCodeDisplay {
+  text-align: center;
+  margin-bottom: 1em;
+}
+
+#roomCodeDisplay .room-label {
+  display: block;
+  font-size: 0.85em;
+  color: #8899aa;
+  margin-bottom: 0.2em;
+}
+
+#roomCodeBig {
+  font-size: 3em;
+  font-weight: bold;
+  color: #ffb703;
+  letter-spacing: 0.3em;
+  font-family: monospace;
+  text-shadow: 0 0 20px rgba(255, 183, 3, 0.3);
+}
+
+#lobbyPlayerList {
+  margin: 0.5em 0 1em;
+  min-height: 60px;
+  text-align: center;
+}
+
+.lobby-player {
+  padding: 4px 0;
+  font-size: 1em;
+}
+
+.lobby-player.host::after {
+  content: " (Host)";
+  color: #ffb703;
+  font-size: 0.85em;
+}
+
+.lobby-player.disconnected {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.lobby-player.you {
+  color: #ffb703;
+  font-weight: bold;
+}
+
+/* ===== End Game Overlay ===== */
+#endOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(10, 10, 30, 0.95);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+#endOverlay.visible {
+  display: flex;
+}
+
+#endOverlay h1 {
+  font-size: 2em;
+  color: #ffb703;
+  margin-bottom: 0.5em;
+}
+
+#endScoreboard {
+  font-size: 1.1em;
+  margin-bottom: 1.5em;
+  line-height: 1.8;
+}
+
+#endScoreboard .winner {
+  color: #ffb703;
+  font-weight: bold;
+}
+
+#playAgainBtn {
+  padding: 10px 40px;
+  font-size: 1.1em;
+  background: #ffb703;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* ===== In-game End button ===== */
+#endGameBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px 16px;
+  font-size: 0.8em;
+  background: #553333;
+  color: #ddd;
+  border: 1px solid #774444;
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 5;
+  display: none;
+}
+
+#endGameBtn.visible {
+  display: block;
+}
+
+#endGameBtn:hover {
+  background: #774444;
+}
