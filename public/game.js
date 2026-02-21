@@ -6,6 +6,7 @@ import { CONFIG, IMPAIRMENTS, BUFFS } from './config.js';
 import * as physics from './physics.js';
 import { State, getFlicker, flickerHas, flickerHasImpairment, flickerHasBuff, flickerImpairmentCount, assignRandomImpairment, assignRandomBuff, removeRandomImpairment, consumeBuffs, getEffectiveAngleRange, getEffectiveAngleSpeed, getEffectivePowerSpeed, updateDazeBlink, shouldDazeHide, setMessage, currentTosserName, currentFlickerName, generateTossPositions, rollOrientations, performToss, computeCenterAngle, getGateChips, startAngleSelection, lockAngle, lockPowerAndFlick, executeFlick, evaluateFlick, onFlickSuccess, onFlickFailure } from './state.js';
 import * as net from './net.js';
+import { setupNetworkHandlers } from './handlers.js';
 
 // ============================================================================
 // CANVAS SETUP
@@ -822,6 +823,27 @@ function tick(timestamp) {
 }
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+function applyConfig(config) {
+  if (config.frictionTable      !== undefined) CONFIG.FRICTION_TABLE       = config.frictionTable;
+  if (config.frictionChipTop    !== undefined) CONFIG.FRICTION_CHIP_TOP    = config.frictionChipTop;
+  if (config.frictionChipBottom !== undefined) CONFIG.FRICTION_CHIP_BOTTOM = config.frictionChipBottom;
+  if (config.dampingScale       !== undefined) CONFIG.DAMPING_SCALE        = config.dampingScale;
+  if (config.chipRestitution    !== undefined) CONFIG.CHIP_RESTITUTION     = config.chipRestitution;
+}
+
+function renderScoreboard(players) {
+  const sorted = [...players].sort((a, b) => a.failures - b.failures);
+  const minFails = sorted[0].failures;
+  return sorted.map((p) => {
+    const isWinner = p.failures === minFails;
+    return `<div class="${isWinner ? "winner" : ""}">${p.name}: ${p.failures} failure${p.failures !== 1 ? "s" : ""}${isWinner ? " ★" : ""}</div>`;
+  }).join("");
+}
+
+// ============================================================================
 // SETUP UI
 // ============================================================================
 
@@ -923,43 +945,21 @@ advancedToggle.addEventListener("click", () => {
     : "Advanced Settings";
 });
 
-// Wire up slider value displays (local)
-for (const id of [
-  "frictionTable",
-  "frictionChipTop",
-  "frictionChipBottom",
-  "dampingScale",
-  "chipRestitution",
-]) {
-  const slider = document.getElementById(id);
-  const valSpan = document.getElementById(id + "Val");
-  if (slider && valSpan) {
-    slider.addEventListener("input", () => {
-      valSpan.textContent = parseFloat(slider.value).toFixed(
-        slider.step < 1 ? 2 : 1,
-      );
-    });
+// Wire up slider value displays
+function wireSliders(ids) {
+  for (const id of ids) {
+    const slider = document.getElementById(id);
+    const valSpan = document.getElementById(id + "Val");
+    if (slider && valSpan) {
+      slider.addEventListener("input", () => {
+        valSpan.textContent = parseFloat(slider.value).toFixed(slider.step < 1 ? 2 : 1);
+      });
+    }
   }
 }
 
-// Wire up online advanced settings slider value displays
-for (const id of [
-  "onFrictionTable",
-  "onFrictionChipTop",
-  "onFrictionChipBottom",
-  "onDampingScale",
-  "onChipRestitution",
-]) {
-  const slider = document.getElementById(id);
-  const valSpan = document.getElementById(id + "Val");
-  if (slider && valSpan) {
-    slider.addEventListener("input", () => {
-      valSpan.textContent = parseFloat(slider.value).toFixed(
-        slider.step < 1 ? 2 : 1,
-      );
-    });
-  }
-}
+wireSliders(["frictionTable", "frictionChipTop", "frictionChipBottom", "dampingScale", "chipRestitution"]);
+wireSliders(["onFrictionTable", "onFrictionChipTop", "onFrictionChipBottom", "onDampingScale", "onChipRestitution"]);
 
 if (onlineAdvToggle && onlineAdvSettings) {
   onlineAdvToggle.addEventListener("click", () => {
@@ -985,21 +985,13 @@ startBtn.addEventListener("click", () => {
   });
 
   // Read advanced settings
-  CONFIG.FRICTION_TABLE = parseFloat(
-    document.getElementById("frictionTable").value,
-  );
-  CONFIG.FRICTION_CHIP_TOP = parseFloat(
-    document.getElementById("frictionChipTop").value,
-  );
-  CONFIG.FRICTION_CHIP_BOTTOM = parseFloat(
-    document.getElementById("frictionChipBottom").value,
-  );
-  CONFIG.DAMPING_SCALE = parseFloat(
-    document.getElementById("dampingScale").value,
-  );
-  CONFIG.CHIP_RESTITUTION = parseFloat(
-    document.getElementById("chipRestitution").value,
-  );
+  applyConfig({
+    frictionTable:      parseFloat(document.getElementById("frictionTable").value),
+    frictionChipTop:    parseFloat(document.getElementById("frictionChipTop").value),
+    frictionChipBottom: parseFloat(document.getElementById("frictionChipBottom").value),
+    dampingScale:       parseFloat(document.getElementById("dampingScale").value),
+    chipRestitution:    parseFloat(document.getElementById("chipRestitution").value),
+  });
 
   startGame(players);
 });
@@ -1083,17 +1075,7 @@ function endGame() {
   State.phase = "GAME_OVER";
   endGameBtn.classList.remove("visible");
 
-  // Sort players by failures (ascending)
-  const sorted = [...State.players].sort((a, b) => a.failures - b.failures);
-  const minFails = sorted[0].failures;
-
-  const scoreboard = document.getElementById("endScoreboard");
-  scoreboard.innerHTML = sorted
-    .map((p) => {
-      const isWinner = p.failures === minFails;
-      return `<div class="${isWinner ? "winner" : ""}">${p.name}: ${p.failures} failure${p.failures !== 1 ? "s" : ""}${isWinner ? " ★" : ""}</div>`;
-    })
-    .join("");
+  document.getElementById("endScoreboard").innerHTML = renderScoreboard(State.players);
 
   endOverlay.classList.add("visible");
 
@@ -1140,13 +1122,7 @@ function startGameOnline(players, config, tosserIndex, flickerIndex) {
   State.remoteChipTargets = null;
 
   // Apply server config
-  if (config) {
-    if (config.frictionTable !== undefined) CONFIG.FRICTION_TABLE = config.frictionTable;
-    if (config.frictionChipTop !== undefined) CONFIG.FRICTION_CHIP_TOP = config.frictionChipTop;
-    if (config.frictionChipBottom !== undefined) CONFIG.FRICTION_CHIP_BOTTOM = config.frictionChipBottom;
-    if (config.dampingScale !== undefined) CONFIG.DAMPING_SCALE = config.dampingScale;
-    if (config.chipRestitution !== undefined) CONFIG.CHIP_RESTITUTION = config.chipRestitution;
-  }
+  if (config) applyConfig(config);
 
   // Build player objects
   State.players = players.map((p) => ({
@@ -1169,372 +1145,6 @@ function startGameOnline(players, config, tosserIndex, flickerIndex) {
 }
 
 // ============================================================================
-// NETWORK HANDLERS
-// ============================================================================
-
-function setupNetworkHandlers() {
-  // --- Lobby events ---
-
-  net.on("room_created", (msg) => {
-    showView("waitingRoom");
-    roomCodeBig.textContent = msg.code;
-    lobbyStartBtn.style.display = "";
-  });
-
-  net.on("room_joined", (msg) => {
-    showView("waitingRoom");
-    roomCodeBig.textContent = msg.code;
-    lobbyStartBtn.style.display = "none";
-  });
-
-  net.on("lobby_update", (msg) => {
-    // Update player list display
-    if (lobbyPlayerList) {
-      lobbyPlayerList.innerHTML = msg.players
-        .map(
-          (p) =>
-            `<div class="lobby-player${p.isHost ? " host" : ""}${!p.connected ? " disconnected" : ""}">${p.name}${p.isHost ? " (Host)" : ""}${!p.connected ? " (disconnected)" : ""}</div>`,
-        )
-        .join("");
-    }
-    // Show start button only for host with 2+ players
-    if (lobbyStartBtn) {
-      const amHost = net.getIsHost();
-      lobbyStartBtn.style.display =
-        amHost && msg.players.length >= 2 ? "" : "none";
-    }
-  });
-
-  // --- Game started ---
-
-  net.on("game_started", (msg) => {
-    startGameOnline(msg.players, msg.config, msg.tosserIndex, msg.flickerIndex);
-  });
-
-  // --- Toss ---
-
-  net.on("request_toss", (msg) => {
-    State.tosserIndex = msg.tosserIndex;
-    State.flickerIndex = msg.flickerIndex;
-    State.phase = "TOSSING";
-
-    // If I am the tosser, generate positions and send
-    if (net.amITosser(msg.tosserIndex)) {
-      performToss();
-    }
-    // Otherwise, wait for toss_broadcast
-  });
-
-  net.on("toss_broadcast", (msg) => {
-    // All clients create chips and animate scatter
-    physics.removeChips(State.chips);
-    State.chips = [];
-
-    State.tosserIndex = msg.tosserIndex;
-    State.flickerIndex = msg.flickerIndex;
-    State.consecutiveFlicks = 0;
-
-    const positions = msg.positions;
-    State.tossTargetPositions = positions.map((p) => ({
-      x: p.x,
-      y: p.y,
-      topUp: p.topUp,
-    }));
-
-    // Create chips at center for animation
-    const center = CONFIG.TABLE_SIZE / 2;
-    for (let i = 0; i < positions.length; i++) {
-      const chip = physics.createChipBody(center, center, positions[i].topUp);
-      chip.body.setTranslation({ x: center, y: center }, true);
-      chip.body.setLinvel({ x: 0, y: 0 }, true);
-      State.chips.push(chip);
-    }
-
-    State.tossAnimStart = performance.now();
-    State.phase = "TOSS_ANIMATING";
-    setMessage(`${currentTosserName()} tosses the chips!`);
-  });
-
-  // --- Chip Selected ---
-
-  net.on("chip_selected_broadcast", (msg) => {
-    State.selectedChipIndex = msg.chipIndex;
-    startAngleSelection();
-  });
-
-  // --- Angle Locked ---
-
-  net.on("angle_locked_broadcast", (msg) => {
-    State.flickAngle = msg.angle;
-    if (msg.centerAngle !== undefined) {
-      State.centerAngle = msg.centerAngle;
-    }
-    State.oscillator = 0.5;
-    State.oscillatorDir = 1;
-    State.phase = "FLICK_POWER";
-  });
-
-  // --- Execute Flick ---
-
-  net.on("execute_flick_broadcast", (msg) => {
-    State.selectedChipIndex = msg.chipIndex;
-    State.flickAngle = msg.angle;
-    State.flickPower = msg.power;
-
-    if (net.isMyTurn(State.flickerIndex)) {
-      // Active client: run physics locally + stream
-      executeFlick();
-    } else {
-      // Spectator: enter FLICK_ANIMATING state, wait for physics frames
-      State.flickStartTime = performance.now();
-      State.phase = "FLICK_ANIMATING";
-      State.remoteChipTargets = null;
-    }
-  });
-
-  // --- Physics Frame (spectator lerp targets) ---
-
-  net.on("physics_frame_broadcast", (msg) => {
-    State.remoteChipTargets = msg.chips;
-  });
-
-  // --- Flick Result ---
-
-  net.on("flick_result_broadcast", (msg) => {
-    net.stopPhysicsStreaming();
-    State.remoteChipTargets = null;
-
-    // Teleport chips to final positions
-    if (msg.finalPositions && State.chips.length === msg.finalPositions.length) {
-      for (let i = 0; i < State.chips.length; i++) {
-        const fp = msg.finalPositions[i];
-        State.chips[i].body.setTranslation({ x: fp.x, y: fp.y }, true);
-        State.chips[i].body.setLinvel({ x: 0, y: 0 }, true);
-        if (fp.topUp !== undefined) {
-          State.chips[i].topUp = fp.topUp;
-        }
-      }
-    }
-
-    // Restore collision groups on the flicked chip
-    if (msg.chipIndex >= 0 && msg.chipIndex < State.chips.length) {
-      State.chips[msg.chipIndex].collider.setCollisionGroups(0x0002ffff);
-    }
-
-    physics.removeGateSensor();
-
-    if (msg.success) {
-      // Update chip states from server
-      if (msg.chipStates) {
-        for (let i = 0; i < State.chips.length && i < msg.chipStates.length; i++) {
-          State.chips[i].flicked = msg.chipStates[i].flicked;
-          State.chips[i].eligible = msg.chipStates[i].eligible;
-        }
-      }
-
-      State.consecutiveFlicks = msg.consecutiveFlicks || 0;
-      State.selectedChipIndex = -1;
-
-      // Build message
-      let flickerName = State.players[msg.flickerIndex]?.name || "Player";
-      let streakMsg = "";
-      if (msg.streakEvent) {
-        if (msg.streakEvent.type === "cure") {
-          const imp = IMPAIRMENTS.find((i) => i.id === msg.streakEvent.impairmentId);
-          streakMsg = ` ${flickerName} cured: ${imp ? imp.name : msg.streakEvent.impairmentId}!`;
-        } else if (msg.streakEvent.type === "buff") {
-          const buff = BUFFS.find((b) => b.id === msg.streakEvent.buffId);
-          streakMsg = ` ${flickerName} is On Fire! Buff: ${buff ? buff.name : msg.streakEvent.buffId}`;
-        }
-      }
-
-      if (msg.consecutiveFlicks === 0 && State.chips.every((c) => c.eligible)) {
-        setMessage("Round complete! Chips stay." + streakMsg);
-      } else {
-        setMessage("Success!" + streakMsg);
-      }
-
-      State.flickerIndex = msg.nextFlickerIndex;
-      State.tosserIndex = msg.tosserIndex;
-      State.phase = "SELECTING_CHIP";
-    } else {
-      // Failure
-      let flickerName = State.players[msg.flickerIndex]?.name || "Player";
-      let impMsg = "";
-      if (msg.impairmentEvent) {
-        const imp = IMPAIRMENTS.find((i) => i.id === msg.impairmentEvent.impairmentId);
-        impMsg = ` Gains: ${imp ? imp.name : msg.impairmentEvent.impairmentId}!`;
-      }
-
-      setMessage(`${flickerName} fails! ${msg.reason || ""}${impMsg}`);
-      State.selectedChipIndex = -1;
-      State.tosserIndex = msg.tosserIndex;
-      State.flickerIndex = msg.nextFlickerIndex;
-      State.consecutiveFlicks = 0;
-      State.phase = "EVALUATING";
-      // Server handles the 1800ms delay and sends request_toss
-    }
-  });
-
-  // --- Player State Update ---
-
-  net.on("player_state_update", (msg) => {
-    State.myPlayerIndex = msg.yourIndex;
-    if (msg.players) {
-      for (const pData of msg.players) {
-        const localPlayer = State.players[pData.index];
-        if (!localPlayer) continue;
-
-        localPlayer.name = pData.name;
-        localPlayer.failures = pData.failures;
-        localPlayer.streak = pData.streak;
-
-        if (pData.impairments !== undefined) {
-          // Full data for self
-          localPlayer.impairments = pData.impairments;
-          localPlayer.onFireBuffs = pData.onFireBuffs;
-          // Clear count fields if present
-          delete localPlayer.impairmentCount;
-          delete localPlayer.buffCount;
-        } else {
-          // Counts only for other players
-          localPlayer.impairmentCount = pData.impairmentCount;
-          localPlayer.buffCount = pData.buffCount;
-          // Keep impairments/onFireBuffs as empty arrays so flicker helpers work
-          // (they won't match since we don't know the IDs)
-          localPlayer.impairments = [];
-          localPlayer.onFireBuffs = [];
-        }
-
-        if (pData.connected !== undefined) {
-          localPlayer.connected = pData.connected;
-        }
-      }
-    }
-  });
-
-  // --- Player Disconnected / Reconnected ---
-
-  net.on("player_disconnected", (msg) => {
-    setMessage(`${msg.playerName} disconnected`);
-    if (State.players[msg.playerIndex]) {
-      State.players[msg.playerIndex].connected = false;
-    }
-  });
-
-  net.on("player_reconnected", (msg) => {
-    setMessage(`${msg.playerName} reconnected`);
-    if (State.players[msg.playerIndex]) {
-      State.players[msg.playerIndex].connected = true;
-    }
-  });
-
-  // --- Turn Skipped ---
-
-  net.on("turn_skipped", (msg) => {
-    setMessage(`${msg.playerName}'s turn was skipped (disconnected)`);
-  });
-
-  // --- Game Ended ---
-
-  net.on("game_ended", (msg) => {
-    State.phase = "GAME_OVER";
-    endGameBtn.classList.remove("visible");
-
-    const scoreboard = document.getElementById("endScoreboard");
-    if (msg.scores) {
-      const sorted = [...msg.scores].sort((a, b) => a.failures - b.failures);
-      const minFails = sorted[0].failures;
-
-      scoreboard.innerHTML = sorted
-        .map((p) => {
-          const isWinner = p.failures === minFails;
-          return `<div class="${isWinner ? "winner" : ""}">${p.name}: ${p.failures} failure${p.failures !== 1 ? "s" : ""}${isWinner ? " ★" : ""}</div>`;
-        })
-        .join("");
-    }
-
-    endOverlay.classList.add("visible");
-    physics.removeChips(State.chips);
-    State.chips = [];
-  });
-
-  // --- Error ---
-
-  net.on("error", (msg) => {
-    if (onlineError) {
-      onlineError.textContent = msg.message || "An error occurred.";
-    }
-  });
-
-  // --- Reconnect State ---
-
-  net.on("reconnect_state", (msg) => {
-    // If a game is in progress, restore state
-    if (msg.roomState === "PLAYING") {
-      // Apply config
-      const config = msg.config || {};
-      if (config.frictionTable !== undefined) CONFIG.FRICTION_TABLE = config.frictionTable;
-      if (config.frictionChipTop !== undefined) CONFIG.FRICTION_CHIP_TOP = config.frictionChipTop;
-      if (config.frictionChipBottom !== undefined) CONFIG.FRICTION_CHIP_BOTTOM = config.frictionChipBottom;
-      if (config.dampingScale !== undefined) CONFIG.DAMPING_SCALE = config.dampingScale;
-      if (config.chipRestitution !== undefined) CONFIG.CHIP_RESTITUTION = config.chipRestitution;
-
-      State.isOnline = true;
-      State.myPlayerIndex = msg.playerIndex;
-      State.tosserIndex = msg.tosserIndex;
-      State.flickerIndex = msg.flickerIndex;
-      State.consecutiveFlicks = msg.consecutiveFlicks || 0;
-
-      // Recreate world
-      State.chips = [];
-      physics.createWorld();
-      physics.createWalls();
-
-      // Recreate chips at their positions
-      if (msg.chipPositions) {
-        for (const cp of msg.chipPositions) {
-          const chip = physics.createChipBody(cp.x, cp.y, cp.topUp);
-          chip.body.setTranslation({ x: cp.x, y: cp.y }, true);
-          chip.body.setLinvel({ x: 0, y: 0 }, true);
-          State.chips.push(chip);
-        }
-      }
-
-      // Apply chip states
-      if (msg.chipStates) {
-        for (let i = 0; i < State.chips.length && i < msg.chipStates.length; i++) {
-          State.chips[i].flicked = msg.chipStates[i].flicked;
-          State.chips[i].eligible = msg.chipStates[i].eligible;
-        }
-      }
-
-      setupOverlay.style.display = "none";
-      endOverlay.classList.remove("visible");
-      endGameBtn.classList.add("visible");
-
-      // Set phase based on server phase
-      const phaseMap = {
-        SELECTING_CHIP: "SELECTING_CHIP",
-        FLICK_ANGLE: "FLICK_ANGLE",
-        FLICK_POWER: "FLICK_POWER",
-        FLICK_ANIMATING: "FLICK_ANIMATING",
-        EVALUATING: "EVALUATING",
-        TOSSING: "TOSSING",
-        TOSS_ANIMATING: "TOSS_ANIMATING",
-      };
-      State.phase = phaseMap[msg.phase] || "SELECTING_CHIP";
-      setMessage("Reconnected!");
-    } else {
-      // Back in lobby
-      showView("waitingRoom");
-      roomCodeBig.textContent = msg.code;
-      lobbyStartBtn.style.display = net.getIsHost() ? "" : "none";
-    }
-  });
-}
-
-// ============================================================================
 // INIT
 // ============================================================================
 
@@ -1542,7 +1152,11 @@ function init() {
   physics.createWorld();
   physics.createWalls();
   lastTime = performance.now();
-  setupNetworkHandlers();
+  setupNetworkHandlers(
+    { roomCodeBig, lobbyPlayerList, lobbyStartBtn, onlineError,
+      setupOverlay, endOverlay, endGameBtn },
+    { showView, applyConfig, renderScoreboard, startGameOnline },
+  );
   net.connect();
   requestAnimationFrame(tick);
 }
