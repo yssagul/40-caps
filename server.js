@@ -583,8 +583,8 @@ function handleFlickResult(ws, clientId, msg) {
       streakEvent = { type: "cure", impairmentId: cured };
       flicker.streak = 0;
     }
-    // 3-streak: earn buff (awarded AFTER consuming old buffs, so it persists to next flick)
-    else if (flicker.streak >= 3) {
+    // 3-streak: earn buff (only if no impairments, so streak can build to 5)
+    else if (flicker.streak >= 3 && flicker.impairments.length === 0) {
       const remaining = BUFF_IDS.filter(
         (b) => !flicker.onFireBuffs.includes(b),
       );

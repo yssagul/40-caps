@@ -453,7 +453,7 @@ export function onFlickSuccess() {
   player.streak++;
   let streakMsg = "";
 
-  // 5-streak: cure one impairment (priority over 3-streak)
+  // 5-streak: cure one impairment
   if (player.streak >= 5 && player.impairments.length > 0) {
     const cured = removeRandomImpairment(player);
     if (cured) {
@@ -461,8 +461,8 @@ export function onFlickSuccess() {
     }
     player.streak = 0;
   }
-  // 3-streak: earn On Fire buff
-  else if (player.streak >= 3) {
+  // 3-streak: earn On Fire buff (only if no impairments, so streak can build to 5)
+  else if (player.streak >= 3 && player.impairments.length === 0) {
     const buff = assignRandomBuff(player);
     if (buff) {
       streakMsg = ` ${player.name} is On Fire! Buff: ${buff.name}`;
