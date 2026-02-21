@@ -559,6 +559,13 @@ function handleFlickResult(ws, clientId, msg) {
 
   if (msg.success) {
     // --- SUCCESS ---
+
+    // Snapshot buffs that were active FOR this flick (to consume after)
+    const buffsUsedThisFlick = [...flicker.onFireBuffs];
+
+    // Consume the buffs that were active for this flick
+    flicker.onFireBuffs = [];
+
     flicker.streak++;
 
     // Mark chip as flicked
@@ -581,7 +588,7 @@ function handleFlickResult(ws, clientId, msg) {
       streakEvent = { type: "cure", impairmentId: cured };
       flicker.streak = 0;
     }
-    // 3-streak: earn buff
+    // 3-streak: earn buff (awarded AFTER consuming old buffs, so it persists to next flick)
     else if (flicker.streak >= 3) {
       const remaining = BUFF_IDS.filter(
         (b) => !flicker.onFireBuffs.includes(b),
@@ -593,10 +600,6 @@ function handleFlickResult(ws, clientId, msg) {
       }
       flicker.streak = 0;
     }
-
-    // Consume buffs after use
-    const consumedBuffs = [...flicker.onFireBuffs];
-    flicker.onFireBuffs = [];
 
     // After 2 consecutive flicks, reset eligibility
     if (room.consecutiveFlicks >= 2) {
@@ -623,7 +626,7 @@ function handleFlickResult(ws, clientId, msg) {
       consecutiveFlicks: room.consecutiveFlicks,
       chipStates: room.chipStates,
       streakEvent,
-      consumedBuffs,
+      consumedBuffs: buffsUsedThisFlick,
     });
 
     sendPrivatePlayerState(room);
