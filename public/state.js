@@ -50,6 +50,7 @@ export const State = {
 // ============================================================================
 
 export function getFlicker() {
+  if (State.flickerIndex < 0 || State.flickerIndex >= State.players.length) return null;
   return State.players[State.flickerIndex];
 }
 
@@ -437,6 +438,7 @@ export function evaluateFlick() {
 
 export function onFlickSuccess() {
   const player = getFlicker();
+  if (!player) return;
 
   // Consume On Fire buffs after this flick
   consumeBuffs(player);
@@ -487,6 +489,7 @@ export function onFlickSuccess() {
 
 export function onFlickFailure(reason) {
   const player = getFlicker();
+  if (!player) return;
 
   // Consume On Fire buffs after this flick
   consumeBuffs(player);

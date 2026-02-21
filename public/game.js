@@ -129,6 +129,9 @@ canvas.addEventListener(
 
 let mouseCanvasX = -1;
 let mouseCanvasY = -1;
+let lastTooltipMouseX = -1;
+let lastTooltipMouseY = -1;
+let cachedTooltipHit = null;
 
 canvas.addEventListener("mousemove", (e) => {
   const pos = getCanvasMousePos(e);
@@ -318,85 +321,74 @@ function drawImpairmentBadge(x, y, abbr, color, name, desc, kind) {
   return w + 2;
 }
 
-function drawAnonymousBadge(x, y, count, color) {
-  const w = 16,
-    h = 14;
-  ctx.fillStyle = color;
-  ctx.fillRect(x, y - h + 2, w, h);
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 9px monospace";
-  ctx.textAlign = "center";
-  ctx.fillText(String(count), x + w / 2, y - 1);
-  ctx.textAlign = "left";
-  // Record bounding box for hover detection — anonymous badges show generic tooltip
-  const kindLabel = color === "#b8860b" ? "buff" : "impairment";
-  const plural = count !== 1 ? "s" : "";
-  State.badgeRects.push({
-    x,
-    y: y - h + 2,
-    w,
-    h,
-    name: kindLabel === "buff" ? "Buffs" : "Impairments",
-    desc: `${count} active ${kindLabel}${plural}`,
-    kind: kindLabel,
-  });
-  return w + 2;
-}
 
 function drawBadgeTooltip() {
   if (mouseCanvasX < 0 || mouseCanvasY < 0) return;
 
-  const PAD = 4;
-  const hit = State.badgeRects.find(
-    (r) =>
-      mouseCanvasX >= r.x - PAD &&
-      mouseCanvasX <= r.x + r.w + PAD &&
-      mouseCanvasY >= r.y - PAD &&
-      mouseCanvasY <= r.y + r.h + PAD,
-  );
-  if (!hit || !hit.desc) return;
+  // Recompute hit + layout only when mouse moves
+  if (mouseCanvasX !== lastTooltipMouseX || mouseCanvasY !== lastTooltipMouseY) {
+    lastTooltipMouseX = mouseCanvasX;
+    lastTooltipMouseY = mouseCanvasY;
 
-  // Measure text to size the tooltip
-  const nameFont = "bold 11px sans-serif";
-  const descFont = "11px sans-serif";
-  ctx.font = nameFont;
-  const nameW = ctx.measureText(hit.name).width;
-  ctx.font = descFont;
+    const PAD = 4;
+    const hit = State.badgeRects.find(
+      (r) =>
+        mouseCanvasX >= r.x - PAD &&
+        mouseCanvasX <= r.x + r.w + PAD &&
+        mouseCanvasY >= r.y - PAD &&
+        mouseCanvasY <= r.y + r.h + PAD,
+    );
 
-  // Word-wrap the description to a max width
-  const maxTextW = 170;
-  const words = hit.desc.split(" ");
-  const descLines = [];
-  let line = "";
-  for (const word of words) {
-    const test = line ? line + " " + word : word;
-    if (ctx.measureText(test).width > maxTextW && line) {
-      descLines.push(line);
-      line = word;
-    } else {
-      line = test;
+    if (!hit || !hit.desc) {
+      cachedTooltipHit = null;
+      return;
     }
+
+    // Measure text to size the tooltip
+    const nameFont = "bold 11px sans-serif";
+    const descFont = "11px sans-serif";
+    ctx.font = nameFont;
+    const nameW = ctx.measureText(hit.name).width;
+    ctx.font = descFont;
+
+    const maxTextW = 170;
+    const words = hit.desc.split(" ");
+    const descLines = [];
+    let line = "";
+    for (const word of words) {
+      const test = line ? line + " " + word : word;
+      if (ctx.measureText(test).width > maxTextW && line) {
+        descLines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) descLines.push(line);
+
+    let descMaxW = 0;
+    for (const dl of descLines) {
+      const w = ctx.measureText(dl).width;
+      if (w > descMaxW) descMaxW = w;
+    }
+
+    const padX = 8, padY = 6;
+    const lineH = 14;
+    const gapAfterName = 4;
+    const tipW = Math.max(nameW, descMaxW) + padX * 2;
+    const tipH = padY + lineH + gapAfterName + descLines.length * lineH + padY;
+
+    let tx = hit.x;
+    let ty = hit.y + hit.h + 6;
+    if (tx + tipW > CANVAS_W - 4) tx = CANVAS_W - tipW - 4;
+    if (tx < 2) tx = 2;
+
+    cachedTooltipHit = { hit, nameFont, descFont, nameW, descLines, padX, padY, lineH, gapAfterName, tipW, tipH, tx, ty };
   }
-  if (line) descLines.push(line);
 
-  let descMaxW = 0;
-  for (const dl of descLines) {
-    const w = ctx.measureText(dl).width;
-    if (w > descMaxW) descMaxW = w;
-  }
+  if (!cachedTooltipHit) return;
 
-  const padX = 8,
-    padY = 6;
-  const lineH = 14;
-  const gapAfterName = 4;
-  const tipW = Math.max(nameW, descMaxW) + padX * 2;
-  const tipH = padY + lineH + gapAfterName + descLines.length * lineH + padY;
-
-  // Always position below the badge
-  let tx = hit.x;
-  let ty = hit.y + hit.h + 6;
-  if (tx + tipW > CANVAS_W - 4) tx = CANVAS_W - tipW - 4;
-  if (tx < 2) tx = 2;
+  const { hit, nameFont, descFont, descLines, padX, padY, lineH, gapAfterName, tipW, tipH, tx, ty } = cachedTooltipHit;
 
   // Rounded rect background
   const r = 5;

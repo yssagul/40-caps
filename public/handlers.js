@@ -77,6 +77,11 @@ export function setupNetworkHandlers(ui, helpers) {
   });
 
   net.on("toss_broadcast", (msg) => {
+    if (!Array.isArray(msg.positions) || msg.positions.length === 0) {
+      console.warn("[handler] toss_broadcast: missing or empty positions");
+      return;
+    }
+
     // All clients create chips and animate scatter
     physics.removeChips(State.chips);
     State.chips = [];
@@ -108,6 +113,7 @@ export function setupNetworkHandlers(ui, helpers) {
   // --- Chip Selected ---
 
   net.on("chip_selected_broadcast", (msg) => {
+    if (typeof msg.chipIndex !== "number") return;
     State.selectedChipIndex = msg.chipIndex;
     startAngleSelection();
   });
@@ -115,6 +121,7 @@ export function setupNetworkHandlers(ui, helpers) {
   // --- Angle Locked ---
 
   net.on("angle_locked_broadcast", (msg) => {
+    if (typeof msg.angle !== "number") return;
     State.flickAngle = msg.angle;
     if (msg.centerAngle !== undefined) {
       State.centerAngle = msg.centerAngle;
@@ -127,6 +134,7 @@ export function setupNetworkHandlers(ui, helpers) {
   // --- Execute Flick ---
 
   net.on("execute_flick_broadcast", (msg) => {
+    if (typeof msg.chipIndex !== "number" || typeof msg.angle !== "number" || typeof msg.power !== "number") return;
     State.selectedChipIndex = msg.chipIndex;
     State.flickAngle = msg.angle;
     State.flickPower = msg.power;
@@ -145,6 +153,7 @@ export function setupNetworkHandlers(ui, helpers) {
   // --- Physics Frame (spectator lerp targets) ---
 
   net.on("physics_frame_broadcast", (msg) => {
+    if (!Array.isArray(msg.chips)) return;
     State.remoteChipTargets = msg.chips;
   });
 

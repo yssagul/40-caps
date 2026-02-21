@@ -62,7 +62,13 @@ export function connect() {
   };
 
   ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch (e) {
+      console.warn("[net] Failed to parse server message:", e.message);
+      return;
+    }
     handleServerMessage(msg);
   };
 

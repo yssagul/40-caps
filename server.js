@@ -70,7 +70,11 @@ function generateRoomCode() {
 
 function send(ws, data) {
   if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify(data));
+    try {
+      ws.send(JSON.stringify(data));
+    } catch (e) {
+      console.warn("[send] Failed to send to client:", e.message);
+    }
   }
 }
 
@@ -163,7 +167,8 @@ wss.on("connection", (ws) => {
     let msg;
     try {
       msg = JSON.parse(raw);
-    } catch {
+    } catch (e) {
+      console.warn(`[ws] Malformed message from ${clientId}:`, e.message);
       return;
     }
     handleMessage(ws, clientId, msg);
@@ -206,6 +211,7 @@ setInterval(() => {
 // ============================================================================
 
 function handleMessage(ws, clientId, msg) {
+  try {
   switch (msg.type) {
     case "create_room":
       handleCreateRoom(ws, clientId, msg);
@@ -243,6 +249,9 @@ function handleMessage(ws, clientId, msg) {
     case "end_game":
       handleEndGame(ws, clientId);
       break;
+  }
+  } catch (e) {
+    console.error(`[handleMessage] Error processing "${msg?.type}" from ${clientId}:`, e.message);
   }
 }
 
@@ -455,6 +464,7 @@ function handleTossResult(ws, clientId, msg) {
   if (!room || room.state !== "PLAYING") return;
   if (room.phase !== "TOSSING") return;
   if (room.players[room.tosserIndex]?.id !== clientId) return;
+  if (!Array.isArray(msg.positions) || msg.positions.length === 0) return;
 
   room.chipPositions = msg.positions;
   room.chipStates = msg.positions.map(() => ({
@@ -483,6 +493,7 @@ function handleChipSelected(ws, clientId, msg) {
   if (!room || room.state !== "PLAYING") return;
   if (room.phase !== "SELECTING_CHIP") return;
   if (room.players[room.flickerIndex]?.id !== clientId) return;
+  if (typeof msg.chipIndex !== "number") return;
 
   room.phase = "FLICK_ANGLE";
 
@@ -498,6 +509,7 @@ function handleAngleLocked(ws, clientId, msg) {
   if (!room || room.state !== "PLAYING") return;
   if (room.phase !== "FLICK_ANGLE") return;
   if (room.players[room.flickerIndex]?.id !== clientId) return;
+  if (typeof msg.angle !== "number") return;
 
   room.phase = "FLICK_POWER";
 
@@ -513,6 +525,7 @@ function handlePowerLocked(ws, clientId, msg) {
   if (!room || room.state !== "PLAYING") return;
   if (room.phase !== "FLICK_POWER") return;
   if (room.players[room.flickerIndex]?.id !== clientId) return;
+  if (typeof msg.power !== "number" || typeof msg.angle !== "number") return;
 
   room.phase = "FLICK_ANIMATING";
 
@@ -528,6 +541,7 @@ function handlePhysicsFrame(ws, clientId, msg) {
   const room = findRoomByClient(clientId);
   if (!room || room.phase !== "FLICK_ANIMATING") return;
   if (room.players[room.flickerIndex]?.id !== clientId) return;
+  if (!Array.isArray(msg.chips)) return;
 
   // Relay to all except sender
   broadcastToRoomExcept(room, clientId, {
@@ -545,6 +559,7 @@ function handleFlickResult(ws, clientId, msg) {
   if (!room || room.state !== "PLAYING") return;
   if (room.phase !== "FLICK_ANIMATING") return;
   if (room.players[room.flickerIndex]?.id !== clientId) return;
+  if (typeof msg.success !== "boolean") return;
 
   const flicker = room.players[room.flickerIndex];
   const prevFlickerIndex = room.flickerIndex;
@@ -660,7 +675,9 @@ function handleFlickResult(ws, clientId, msg) {
     sendPrivatePlayerState(room);
 
     // After 1800ms delay, request new toss
+    const roomCode = room.code;
     setTimeout(() => {
+      if (!rooms.has(roomCode)) return;
       if (room.state !== "PLAYING" || room.phase !== "EVALUATING") return;
       room.phase = "TOSSING";
       broadcastToRoom(room, {
@@ -752,7 +769,9 @@ function handleDisconnect(ws, clientId) {
       ].includes(room.phase);
 
     if (isActiveTosser || isActiveFlicker) {
+      const roomCode = room.code;
       setTimeout(() => {
+        if (!rooms.has(roomCode)) return;
         if (!room.players[playerIndex]?.connected) {
           autoAdvanceTurn(room, playerIndex);
         }

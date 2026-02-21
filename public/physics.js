@@ -15,6 +15,7 @@ let world = null;
 let eventQueue = null;
 let wallBodies = [];
 let wallColliders = [];
+let wallHandleSet = new Set();
 let gateSensorCollider = null;
 let gateSensorBody = null;
 
@@ -29,6 +30,7 @@ export function createWorld() {
 }
 
 export function createWalls() {
+  if (!world) return;
   const S = CONFIG.TABLE_SIZE;
   const W = CONFIG.WALL_THICKNESS;
 
@@ -57,6 +59,9 @@ export function createWalls() {
     wallBodies.push(body);
     wallColliders.push(collider);
   }
+
+  // Cache wall handles for fast collision lookups
+  wallHandleSet = new Set(wallColliders.map((c) => c.handle));
 }
 
 // ============================================================================
@@ -64,6 +69,7 @@ export function createWalls() {
 // ============================================================================
 
 export function createChipBody(x, y, topUp) {
+  if (!world) return null;
   const chipFriction = topUp
     ? CONFIG.FRICTION_CHIP_BOTTOM
     : CONFIG.FRICTION_CHIP_TOP;
@@ -92,6 +98,7 @@ export function createChipBody(x, y, topUp) {
 }
 
 export function removeChips(chips) {
+  if (!world) return;
   for (const chip of chips) {
     world.removeRigidBody(chip.body);
   }
@@ -103,6 +110,7 @@ export function removeChips(chips) {
 // ============================================================================
 
 export function removeGateSensor() {
+  if (!world) return;
   if (gateSensorBody) {
     world.removeRigidBody(gateSensorBody);
     gateSensorBody = null;
@@ -111,6 +119,7 @@ export function removeGateSensor() {
 }
 
 export function createGateSensor(chipA, chipB) {
+  if (!world) return;
   removeGateSensor();
 
   const posA = chipA.body.translation();
@@ -162,7 +171,7 @@ function lineSegmentsIntersect(p1, p2, p3, p4) {
  * @param {function} getGateChips - returns the 2 non-selected chips
  */
 export function checkGateCrossing(State, getGateChips) {
-  if (State.selectedChipIndex < 0) return;
+  if (!world || State.selectedChipIndex < 0) return;
 
   const chip = State.chips[State.selectedChipIndex];
   const pos = chip.body.translation();
@@ -188,12 +197,12 @@ export function checkGateCrossing(State, getGateChips) {
  * @param {function} getGateChips - returns the 2 non-selected chips
  */
 export function processCollisionEvents(State, getGateChips) {
+  if (!world || !eventQueue) return;
   if (State.phase !== "FLICK_ANIMATING" || State.selectedChipIndex < 0) return;
 
   const flickedHandle = State.chips[State.selectedChipIndex].collider.handle;
   const gate = getGateChips();
   const gateHandles = new Set(gate.map((c) => c.collider.handle));
-  const wallHandleSet = new Set(wallColliders.map((c) => c.handle));
 
   eventQueue.drainCollisionEvents((handle1, handle2, started) => {
     if (!started) return; // only care about collision start
