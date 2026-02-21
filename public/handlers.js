@@ -10,12 +10,12 @@ import { State, setMessage, currentTosserName, startAngleSelection, executeFlick
 import * as net from './net.js';
 import * as physics from './physics.js';
 
-// ui:      { roomCodeBig, lobbyPlayerList, lobbyStartBtn, onlineError,
-//            setupOverlay, endOverlay, endGameBtn }
+// ui:      { roomCodeBig, lobbyPlayerList, lobbyStartBtn, leaveRoomBtn,
+//            closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn }
 // helpers: { showView, applyConfig, renderScoreboard, startGameOnline }
 export function setupNetworkHandlers(ui, helpers) {
-  const { roomCodeBig, lobbyPlayerList, lobbyStartBtn, onlineError,
-          setupOverlay, endOverlay, endGameBtn } = ui;
+  const { roomCodeBig, lobbyPlayerList, lobbyStartBtn, leaveRoomBtn,
+          closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn } = ui;
   const { showView, applyConfig, renderScoreboard, startGameOnline } = helpers;
 
   // --- Lobby events ---
@@ -24,12 +24,18 @@ export function setupNetworkHandlers(ui, helpers) {
     showView("waitingRoom");
     roomCodeBig.textContent = msg.code;
     lobbyStartBtn.style.display = "";
+    // Host sees Close Room, not Leave Room
+    closeRoomBtn.style.display = "";
+    leaveRoomBtn.style.display = "none";
   });
 
   net.on("room_joined", (msg) => {
     showView("waitingRoom");
     roomCodeBig.textContent = msg.code;
     lobbyStartBtn.style.display = "none";
+    // Guest sees Leave Room, not Close Room
+    leaveRoomBtn.style.display = "";
+    closeRoomBtn.style.display = "none";
   });
 
   net.on("lobby_update", (msg) => {
@@ -38,7 +44,7 @@ export function setupNetworkHandlers(ui, helpers) {
       lobbyPlayerList.innerHTML = msg.players
         .map(
           (p) =>
-            `<div class="lobby-player${p.isHost ? " host" : ""}${!p.connected ? " disconnected" : ""}">${p.name}${p.isHost ? " (Host)" : ""}${!p.connected ? " (disconnected)" : ""}</div>`,
+            `<div class="lobby-player${p.isHost ? " host" : ""}${!p.connected ? " disconnected" : ""}">${p.name}${!p.connected ? " (disconnected)" : ""}</div>`,
         )
         .join("");
     }
@@ -349,7 +355,10 @@ export function setupNetworkHandlers(ui, helpers) {
       // Back in lobby
       showView("waitingRoom");
       roomCodeBig.textContent = msg.code;
-      lobbyStartBtn.style.display = net.getIsHost() ? "" : "none";
+      const amHost = net.getIsHost();
+      lobbyStartBtn.style.display = amHost ? "" : "none";
+      closeRoomBtn.style.display = amHost ? "" : "none";
+      leaveRoomBtn.style.display = amHost ? "none" : "";
     }
   });
 }

@@ -878,17 +878,19 @@ const roomCodeBig = document.getElementById("roomCodeBig");
 const lobbyPlayerList = document.getElementById("lobbyPlayerList");
 const lobbyStartBtn = document.getElementById("lobbyStartBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
+const closeRoomBtn = document.getElementById("closeRoomBtn");
 const onlineError = document.getElementById("onlineError");
 
 // ---- View Management ----
 
 function showView(viewId) {
-  // Hide all views
+  // Hide all views — reset both class and inline display
   [modeSelect, localSetup, onlineMenu, waitingRoom].forEach(v => {
-    if (v) v.classList.remove("active");
+    if (v) {
+      v.classList.remove("active");
+      v.style.display = "none";
+    }
   });
-  // modeSelect doesn't have setup-view class, hide it explicitly
-  modeSelect.style.display = "none";
 
   // Show requested view
   const el = document.getElementById(viewId);
@@ -1038,6 +1040,11 @@ leaveRoomBtn.addEventListener("click", () => {
   showView("onlineMenu");
 });
 
+closeRoomBtn.addEventListener("click", () => {
+  net.leaveRoom();
+  showView("onlineMenu");
+});
+
 lobbyStartBtn.addEventListener("click", () => {
   net.startGame();
 });
@@ -1063,6 +1070,9 @@ playAgainBtn.addEventListener("click", () => {
     // Return to lobby (waiting room)
     setupOverlay.style.display = "flex";
     showView("waitingRoom");
+    const amHost = net.getIsHost();
+    closeRoomBtn.style.display = amHost ? "" : "none";
+    leaveRoomBtn.style.display = amHost ? "none" : "";
     State.phase = "SETUP";
   } else {
     setupOverlay.style.display = "flex";
@@ -1153,8 +1163,8 @@ function init() {
   physics.createWalls();
   lastTime = performance.now();
   setupNetworkHandlers(
-    { roomCodeBig, lobbyPlayerList, lobbyStartBtn, onlineError,
-      setupOverlay, endOverlay, endGameBtn },
+    { roomCodeBig, lobbyPlayerList, lobbyStartBtn, leaveRoomBtn,
+      closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn },
     { showView, applyConfig, renderScoreboard, startGameOnline },
   );
   net.connect();

@@ -79,13 +79,6 @@
 
         <button id="createRoomBtn" class="menu-btn accent">Create Room</button>
 
-        <div class="divider-text">or join an existing room</div>
-
-        <div class="join-row">
-          <input type="text" id="roomCodeInput" placeholder="Code" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
-          <button id="joinRoomBtn" class="menu-btn small">Join</button>
-        </div>
-
         <div id="onlineAdvToggle" class="advanced-toggle-link">Advanced Settings</div>
         <div id="onlineAdvSettings" class="advanced-settings-panel">
           <div class="slider-row">
@@ -115,6 +108,13 @@
           </div>
         </div>
 
+        <div class="divider-text">or join an existing room</div>
+
+        <div class="join-row">
+          <input type="text" id="roomCodeInput" placeholder="Code" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+          <button id="joinRoomBtn" class="menu-btn small">Join</button>
+        </div>
+
         <div id="onlineError" class="error-msg"></div>
         <button id="onlineBackBtn" class="back-btn">Back</button>
       </div>
@@ -127,7 +127,8 @@
         </div>
         <div id="lobbyPlayerList"></div>
         <button id="lobbyStartBtn" class="menu-btn accent" style="display:none">Start Game</button>
-        <button id="leaveRoomBtn" class="back-btn">Leave Room</button>
+        <button id="leaveRoomBtn" class="back-btn" style="display:none">Leave Room</button>
+        <button id="closeRoomBtn" class="back-btn" style="display:none">Close Room</button>
       </div>
     </div>
 
