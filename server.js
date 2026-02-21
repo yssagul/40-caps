@@ -464,7 +464,6 @@ function handleTossResult(ws, clientId, msg) {
     flicked: false,
     eligible: true,
   }));
-  room.phase = "TOSS_ANIMATING";
 
   broadcastToRoom(room, {
     type: "toss_broadcast",
@@ -472,6 +471,10 @@ function handleTossResult(ws, clientId, msg) {
     tosserIndex: room.tosserIndex,
     flickerIndex: room.flickerIndex,
   });
+
+  // Transition to SELECTING_CHIP so the server is ready to accept chip_selected
+  // once the client-side toss animation completes
+  room.phase = "SELECTING_CHIP";
 }
 
 // ============================================================================
