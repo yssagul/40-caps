@@ -1720,14 +1720,18 @@ const onlineError = document.getElementById("onlineError");
 
 function showView(viewId) {
   // Hide all views
+  [modeSelect, localSetup, onlineMenu, waitingRoom].forEach(v => {
+    if (v) v.classList.remove("active");
+  });
+  // modeSelect doesn't have setup-view class, hide it explicitly
   modeSelect.style.display = "none";
-  localSetup.style.display = "none";
-  onlineMenu.style.display = "none";
-  waitingRoom.style.display = "none";
 
   // Show requested view
   const el = document.getElementById(viewId);
-  if (el) el.style.display = "";
+  if (el) {
+    el.classList.add("active");
+    el.style.display = "flex";
+  }
 }
 
 // Default: show mode select
