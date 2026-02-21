@@ -13,7 +13,15 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(express.static(path.join(__dirname, "public")));
+const publicDir = path.join(__dirname, "public");
+console.log("Serving static files from:", publicDir);
+
+app.use(express.static(publicDir));
+
+// Fallback: serve index.html for the root route
+app.get("/", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
+});
 
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => console.log(`40 Caps server listening on port ${PORT}`));
