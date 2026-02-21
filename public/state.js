@@ -445,8 +445,17 @@ export function onFlickSuccess() {
   const chip = State.chips[State.selectedChipIndex];
   chip.collider.setCollisionGroups(0x0002ffff);
 
-  State.chips[State.selectedChipIndex].flicked = true;
-  State.chips[State.selectedChipIndex].eligible = false;
+  // The flicked chip is ineligible for the next turn only;
+  // all other chips become eligible again
+  for (let i = 0; i < State.chips.length; i++) {
+    if (i === State.selectedChipIndex) {
+      State.chips[i].flicked = true;
+      State.chips[i].eligible = false;
+    } else {
+      State.chips[i].flicked = false;
+      State.chips[i].eligible = true;
+    }
+  }
   State.selectedChipIndex = -1;
 
   // Streak tracking — counter never resets on success, only on failure

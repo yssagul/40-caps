@@ -565,13 +565,16 @@ function handleFlickResult(ws, clientId, msg) {
 
     flicker.streak++;
 
-    // Mark chip as flicked
-    if (
-      msg.chipIndex >= 0 &&
-      msg.chipIndex < room.chipStates.length
-    ) {
-      room.chipStates[msg.chipIndex].flicked = true;
-      room.chipStates[msg.chipIndex].eligible = false;
+    // The flicked chip is ineligible for the next turn only;
+    // all other chips become eligible again
+    for (let i = 0; i < room.chipStates.length; i++) {
+      if (i === msg.chipIndex) {
+        room.chipStates[i].flicked = true;
+        room.chipStates[i].eligible = false;
+      } else {
+        room.chipStates[i].flicked = false;
+        room.chipStates[i].eligible = true;
+      }
     }
 
     const streakEvents = [];
