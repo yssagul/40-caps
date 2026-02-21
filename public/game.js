@@ -504,14 +504,26 @@ function drawHUD() {
         }
       }
     } else {
-      // Other players in online mode: draw anonymous count badges
+      // Other players in online mode:
+      // Impairments are private — show anonymous count badge
       const impCount = p.impairmentCount !== undefined ? p.impairmentCount : (p.impairments ? p.impairments.length : 0);
-      const buffCount = p.buffCount !== undefined ? p.buffCount : (p.onFireBuffs ? p.onFireBuffs.length : 0);
       if (impCount > 0) {
         bx += drawAnonymousBadge(bx, by, impCount, "#8b2020");
       }
-      if (buffCount > 0) {
-        bx += drawAnonymousBadge(bx, by, buffCount, "#b8860b");
+      // Buffs are public — show actual badge with abbreviation
+      for (const buffId of (p.onFireBuffs || [])) {
+        const buff = BUFFS.find((b) => b.id === buffId);
+        if (buff) {
+          bx += drawImpairmentBadge(
+            bx,
+            by,
+            buff.abbr,
+            "#b8860b",
+            buff.name,
+            buff.desc,
+            "buff",
+          );
+        }
       }
     }
 
@@ -673,6 +685,9 @@ function render() {
     ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
     ctx.fillRect(TX, TY, CONFIG.TABLE_SIZE, CONFIG.TABLE_SIZE);
   }
+
+  // Badge tooltips (drawn last so they paint on top of everything)
+  drawBadgeTooltip();
 }
 
 // ============================================================================

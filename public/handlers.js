@@ -248,13 +248,14 @@ export function setupNetworkHandlers(ui, helpers) {
           delete localPlayer.impairmentCount;
           delete localPlayer.buffCount;
         } else {
-          // Counts only for other players
+          // Other players: impairments are private (count only), buffs are public
           localPlayer.impairmentCount = pData.impairmentCount;
-          localPlayer.buffCount = pData.buffCount;
-          // Keep impairments/onFireBuffs as empty arrays so flicker helpers work
+          localPlayer.onFireBuffs = pData.onFireBuffs || [];
+          // Keep impairments as empty array so flicker helpers work
           // (they won't match since we don't know the IDs)
           localPlayer.impairments = [];
-          localPlayer.onFireBuffs = [];
+          // Clear buffCount since we now have actual buff data
+          delete localPlayer.buffCount;
         }
 
         if (pData.connected !== undefined) {

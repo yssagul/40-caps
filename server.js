@@ -131,7 +131,7 @@ function sendPrivatePlayerState(room) {
           failures: p.failures,
           streak: p.streak,
           impairmentCount: p.impairments.length,
-          buffCount: p.onFireBuffs.length,
+          onFireBuffs: [...p.onFireBuffs],  // Buffs are public (visible to all)
           connected: p.connected,
         };
       }
