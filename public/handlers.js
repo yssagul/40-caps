@@ -187,13 +187,15 @@ export function setupNetworkHandlers(ui, helpers) {
       // Build message
       let flickerName = State.players[msg.flickerIndex]?.name || "Player";
       let streakMsg = "";
-      if (msg.streakEvent) {
-        if (msg.streakEvent.type === "cure") {
-          const imp = IMPAIRMENTS.find((i) => i.id === msg.streakEvent.impairmentId);
-          streakMsg = ` ${flickerName} cured: ${imp ? imp.name : msg.streakEvent.impairmentId}!`;
-        } else if (msg.streakEvent.type === "buff") {
-          const buff = BUFFS.find((b) => b.id === msg.streakEvent.buffId);
-          streakMsg = ` ${flickerName} is On Fire! Buff: ${buff ? buff.name : msg.streakEvent.buffId}`;
+      if (msg.streakEvents) {
+        for (const evt of msg.streakEvents) {
+          if (evt.type === "buff") {
+            const buff = BUFFS.find((b) => b.id === evt.buffId);
+            streakMsg += ` ${flickerName} is On Fire! Buff: ${buff ? buff.name : evt.buffId}`;
+          } else if (evt.type === "cure") {
+            const imp = IMPAIRMENTS.find((i) => i.id === evt.impairmentId);
+            streakMsg += ` ${flickerName} cured: ${imp ? imp.name : evt.impairmentId}!`;
+          }
         }
       }
 

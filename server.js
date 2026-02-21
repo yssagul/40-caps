@@ -574,26 +574,25 @@ function handleFlickResult(ws, clientId, msg) {
       room.chipStates[msg.chipIndex].eligible = false;
     }
 
-    let streakEvent = null;
+    const streakEvents = [];
 
-    // 5-streak with impairments: cure one
-    if (flicker.streak >= 5 && flicker.impairments.length > 0) {
-      const idx = Math.floor(Math.random() * flicker.impairments.length);
-      const cured = flicker.impairments.splice(idx, 1)[0];
-      streakEvent = { type: "cure", impairmentId: cured };
-      flicker.streak = 0;
-    }
-    // 3-streak: earn buff (only if no impairments, so streak can build to 5)
-    else if (flicker.streak >= 3 && flicker.impairments.length === 0) {
+    // Every 3 successes: earn an On Fire buff
+    if (flicker.streak % 3 === 0) {
       const remaining = BUFF_IDS.filter(
         (b) => !flicker.onFireBuffs.includes(b),
       );
       if (remaining.length > 0) {
         const buff = remaining[Math.floor(Math.random() * remaining.length)];
         flicker.onFireBuffs.push(buff);
-        streakEvent = { type: "buff", buffId: buff };
+        streakEvents.push({ type: "buff", buffId: buff });
       }
-      flicker.streak = 0;
+    }
+
+    // Every 5 successes: cure one impairment
+    if (flicker.streak % 5 === 0 && flicker.impairments.length > 0) {
+      const idx = Math.floor(Math.random() * flicker.impairments.length);
+      const cured = flicker.impairments.splice(idx, 1)[0];
+      streakEvents.push({ type: "cure", impairmentId: cured });
     }
 
     // Advance flicker
@@ -610,7 +609,7 @@ function handleFlickResult(ws, clientId, msg) {
       nextFlickerIndex: room.flickerIndex,
       tosserIndex: room.tosserIndex,
       chipStates: room.chipStates,
-      streakEvent,
+      streakEvents,
       consumedBuffs: buffsUsedThisFlick,
     });
 

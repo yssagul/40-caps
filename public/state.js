@@ -449,25 +449,24 @@ export function onFlickSuccess() {
   State.chips[State.selectedChipIndex].eligible = false;
   State.selectedChipIndex = -1;
 
-  // Streak tracking
+  // Streak tracking — counter never resets on success, only on failure
   player.streak++;
   let streakMsg = "";
 
-  // 5-streak: cure one impairment
-  if (player.streak >= 5 && player.impairments.length > 0) {
-    const cured = removeRandomImpairment(player);
-    if (cured) {
-      streakMsg = ` ${player.name} cured: ${cured.name}!`;
-    }
-    player.streak = 0;
-  }
-  // 3-streak: earn On Fire buff (only if no impairments, so streak can build to 5)
-  else if (player.streak >= 3 && player.impairments.length === 0) {
+  // Every 3 successes: earn an On Fire buff
+  if (player.streak % 3 === 0) {
     const buff = assignRandomBuff(player);
     if (buff) {
-      streakMsg = ` ${player.name} is On Fire! Buff: ${buff.name}`;
+      streakMsg += ` ${player.name} is On Fire! Buff: ${buff.name}`;
     }
-    player.streak = 0;
+  }
+
+  // Every 5 successes: cure one impairment
+  if (player.streak % 5 === 0 && player.impairments.length > 0) {
+    const cured = removeRandomImpairment(player);
+    if (cured) {
+      streakMsg += ` ${player.name} cured: ${cured.name}!`;
+    }
   }
 
   setMessage("Success!" + streakMsg);
