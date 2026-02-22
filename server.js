@@ -257,6 +257,9 @@ function handleMessage(ws, clientId, msg) {
     case "end_game":
       handleEndGame(ws, clientId);
       break;
+    case "chat_message":
+      handleChatMessage(ws, clientId, msg);
+      break;
   }
   } catch (e) {
     console.error(`[handleMessage] Error processing "${msg?.type}" from ${clientId}:`, e.message);
@@ -706,6 +709,28 @@ function handleEndGame(ws, clientId) {
   // Return to lobby state so "Play Again" can work
   room.state = "LOBBY";
   room.phase = "LOBBY";
+}
+
+// ============================================================================
+// CHAT
+// ============================================================================
+
+function handleChatMessage(ws, clientId, msg) {
+  const room = findRoomByClient(clientId);
+  if (!room) return;
+
+  const playerIndex = room.players.findIndex((p) => p.id === clientId);
+  if (playerIndex === -1) return;
+
+  const text = typeof msg.text === "string" ? msg.text.trim().slice(0, 500) : "";
+  if (!text) return;
+
+  broadcastToRoom(room, {
+    type: "chat_broadcast",
+    playerIndex,
+    playerName: room.players[playerIndex].name,
+    text,
+  });
 }
 
 // ============================================================================

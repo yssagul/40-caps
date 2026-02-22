@@ -11,11 +11,13 @@ import * as net from './net.js';
 import * as physics from './physics.js';
 
 // ui:      { roomCodeBig, lobbyPlayerList, lobbyStartBtn, leaveRoomBtn,
-//            closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn }
+//            closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn,
+//            chatPanel, chatMessages }
 // helpers: { showView, applyConfig, renderScoreboard, startGameOnline }
 export function setupNetworkHandlers(ui, helpers) {
   const { roomCodeBig, lobbyPlayerList, lobbyStartBtn, leaveRoomBtn,
-          closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn } = ui;
+          closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn,
+          chatPanel, chatMessages } = ui;
   const { showView, applyConfig, renderScoreboard, startGameOnline } = helpers;
 
   function buildStreakMessage(activePlayerName, streakEvents) {
@@ -45,12 +47,14 @@ export function setupNetworkHandlers(ui, helpers) {
     showView("waitingRoom");
     roomCodeBig.textContent = msg.code;
     setLobbyButtons(true);
+    chatPanel.classList.add("visible");
   });
 
   net.on("room_joined", (msg) => {
     showView("waitingRoom");
     roomCodeBig.textContent = msg.code;
     setLobbyButtons(false);
+    chatPanel.classList.add("visible");
   });
 
   net.on("lobby_update", (msg) => {
@@ -248,6 +252,7 @@ export function setupNetworkHandlers(ui, helpers) {
     if (State.players[msg.playerIndex]) {
       State.players[msg.playerIndex].connected = false;
     }
+    appendSystemMessage(`${msg.playerName} disconnected`);
   });
 
   net.on("player_reconnected", (msg) => {
@@ -255,6 +260,7 @@ export function setupNetworkHandlers(ui, helpers) {
     if (State.players[msg.playerIndex]) {
       State.players[msg.playerIndex].connected = true;
     }
+    appendSystemMessage(`${msg.playerName} reconnected`);
   });
 
   // --- Turn Skipped ---
@@ -276,6 +282,49 @@ export function setupNetworkHandlers(ui, helpers) {
     endOverlay.classList.add("visible");
     physics.removeChips(State.chips);
     State.chips = [];
+  });
+
+  // --- Chat ---
+
+  const MAX_CHAT_MESSAGES = 50;
+
+  function appendSystemMessage(text) {
+    if (!chatMessages) return;
+    const el = document.createElement("div");
+    el.className = "chat-system";
+    el.textContent = text;
+    chatMessages.appendChild(el);
+    while (chatMessages.children.length > MAX_CHAT_MESSAGES) {
+      chatMessages.removeChild(chatMessages.firstChild);
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  net.on("chat_broadcast", (msg) => {
+    if (!chatMessages) return;
+
+    const msgEl = document.createElement("div");
+    msgEl.className = "chat-msg";
+
+    const authorSpan = document.createElement("span");
+    authorSpan.className = "chat-author";
+    authorSpan.textContent = msg.playerName + ":";
+    authorSpan.style.color =
+      CONFIG.PLAYER_COLORS[msg.playerIndex % CONFIG.PLAYER_COLORS.length];
+
+    const textSpan = document.createElement("span");
+    textSpan.className = "chat-text";
+    textSpan.textContent = msg.text;
+
+    msgEl.appendChild(authorSpan);
+    msgEl.appendChild(textSpan);
+    chatMessages.appendChild(msgEl);
+
+    while (chatMessages.children.length > MAX_CHAT_MESSAGES) {
+      chatMessages.removeChild(chatMessages.firstChild);
+    }
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
   });
 
   // --- Error ---
@@ -318,6 +367,7 @@ export function setupNetworkHandlers(ui, helpers) {
       setupOverlay.style.display = "none";
       endOverlay.classList.remove("visible");
       endGameBtn.classList.add("visible");
+      chatPanel.classList.add("visible");
 
       State.phase = msg.phase || "SELECTING_CHIP";
       setMessage("Reconnected!");
@@ -326,6 +376,7 @@ export function setupNetworkHandlers(ui, helpers) {
       showView("waitingRoom");
       roomCodeBig.textContent = msg.code;
       setLobbyButtons(net.getIsHost());
+      chatPanel.classList.add("visible");
     }
   });
 }

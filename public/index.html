@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="appWrapper">
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
 
@@ -138,6 +139,16 @@
       <div id="endScoreboard"></div>
       <button id="playAgainBtn">Play Again</button>
     </div>
+  </div>
+
+  <!-- Chat Panel (online only, shown/hidden via JS) -->
+  <div id="chatPanel">
+    <div id="chatMessages"></div>
+    <div id="chatInputArea">
+      <textarea id="chatInput" placeholder="Type a message..." rows="2" maxlength="500"></textarea>
+      <button id="chatSendBtn">Send</button>
+    </div>
+  </div>
   </div>
 
   <script type="module" src="game.js"></script>

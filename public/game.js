@@ -824,6 +824,10 @@ const lobbyStartBtn = document.getElementById("lobbyStartBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 const closeRoomBtn = document.getElementById("closeRoomBtn");
 const onlineError = document.getElementById("onlineError");
+const chatPanel = document.getElementById("chatPanel");
+const chatMessages = document.getElementById("chatMessages");
+const chatInput = document.getElementById("chatInput");
+const chatSendBtn = document.getElementById("chatSendBtn");
 
 // ---- View Management ----
 
@@ -963,15 +967,37 @@ joinRoomBtn.addEventListener("click", () => {
 leaveRoomBtn.addEventListener("click", () => {
   net.leaveRoom();
   showView("onlineMenu");
+  chatPanel.classList.remove("visible");
+  chatMessages.innerHTML = "";
 });
 
 closeRoomBtn.addEventListener("click", () => {
   net.leaveRoom();
   showView("onlineMenu");
+  chatPanel.classList.remove("visible");
+  chatMessages.innerHTML = "";
 });
 
 lobbyStartBtn.addEventListener("click", () => {
   net.startGame();
+});
+
+// ---- Chat ----
+
+function sendChat() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  net.sendChatMessage(text);
+  chatInput.value = "";
+}
+
+chatSendBtn.addEventListener("click", sendChat);
+
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
 });
 
 // ============================================================================
@@ -1079,7 +1105,8 @@ function init() {
   lastTime = performance.now();
   setupNetworkHandlers(
     { roomCodeBig, lobbyPlayerList, lobbyStartBtn, leaveRoomBtn,
-      closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn },
+      closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn,
+      chatPanel, chatMessages },
     { showView, applyConfig, renderScoreboard, startGameOnline },
   );
   net.connect();

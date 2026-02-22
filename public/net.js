@@ -204,6 +204,10 @@ function handleServerMessage(msg) {
     case "game_ended":
       emit("game_ended", msg);
       break;
+
+    case "chat_broadcast":
+      emit("chat_broadcast", msg);
+      break;
   }
 }
 
@@ -258,6 +262,10 @@ export function sendFlickResult(success, reason, chipIndex, finalPositions) {
 
 export function sendEndGame() {
   sendToServer({ type: "end_game" });
+}
+
+export function sendChatMessage(text) {
+  sendToServer({ type: "chat_message", text });
 }
 
 // ============================================================================
