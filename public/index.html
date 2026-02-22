@@ -1,195 +1,379 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>40 Caps</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div id="appWrapper">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>40 Caps</title>
+        <link rel="icon" href="data:," />
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div id="appWrapper">
+            <!-- Rules Panel (left column, shown during gameplay) -->
+            <div id="rulesPanel">
+                <div id="rulesContent">
+                    <h3>How to Play</h3>
+                    <p>
+                        3 chips are tossed onto the table. Pick one to flick
+                        through the other two.
+                    </p>
+                    <p>
+                        Set your <strong>angle</strong>, then
+                        <strong>power</strong> &mdash; each oscillates and you
+                        click to lock it in.
+                    </p>
 
-  <!-- Rules Panel (left column, shown during gameplay) -->
-  <div id="rulesPanel">
-    <div id="rulesContent">
-      <h3>How to Play</h3>
-      <p>3 chips are tossed onto the table. Pick one to flick through
-         the <em>gate</em> &mdash; the gap between the other two.</p>
-      <p>Set your <strong>angle</strong>, then <strong>power</strong> &mdash;
-         each oscillates and you click to lock it in.</p>
+                    <h3>Successful Turn</h3>
+                    <ul>
+                        <li>
+                            Selected chip passes through the other two chips
+                        </li>
+                        <li>Doesn't touch either chip</li>
+                        <li>Doesn't touch a wall</li>
+                    </ul>
 
-      <h3>Success</h3>
-      <ul>
-        <li>Chip passes through the gate</li>
-        <li>Doesn't touch either gate chip</li>
-        <li>Doesn't hit a wall</li>
-      </ul>
+                    <h3>On Failure</h3>
+                    <p>
+                        Every failure accrues one point and resets the board.
+                        Every failure also resets your streak.
+                    </p>
+                    <p>
+                        The player with the
+                        <strong>fewest failures</strong> wins.
+                    </p>
 
-      <h3>Failure</h3>
-      <p>Miss the gate, touch a gate chip, or hit a wall.
-         You get a failure point and must toss again.</p>
-      <p>The player with the <strong>fewest failures</strong> wins.</p>
+                    <h3>Streaks</h3>
+                    <ul>
+                        <li>
+                            <strong>3</strong> in a row &mdash; gain a random
+                            buff
+                        </li>
+                        <li>
+                            <strong>5</strong> in a row &mdash; cure a random
+                            impairment
+                        </li>
+                    </ul>
+                    <p>Streak resets on any failure.</p>
 
-      <h3>Streaks</h3>
-      <ul>
-        <li><strong>3</strong> in a row &mdash; gain a random buff</li>
-        <li><strong>5</strong> in a row &mdash; cure a random impairment</li>
-      </ul>
-      <p>Streak resets on any failure.</p>
+                    <h3>Impairments</h3>
+                    <p>
+                        Every <strong>5 failures</strong>, you gain a random
+                        impairment that increases your difficulty.
+                    </p>
 
-      <h3>Impairments</h3>
-      <p>Every <strong>5 failures</strong>, you gain a random impairment
-         that makes your next flicks harder.</p>
+                    <h3>Buffs</h3>
+                    <p>
+                        Every <strong>3 consecutive successes</strong>, you gain
+                        a random buff that helps for your next turn.
+                    </p>
+                </div>
+            </div>
 
-      <h3>Buffs</h3>
-      <p>Every <strong>3 consecutive successes</strong>, you gain a random
-         buff that helps for one flick.</p>
-    </div>
-  </div>
+            <div id="gameContainer">
+                <canvas id="gameCanvas"></canvas>
 
-  <div id="gameContainer">
-    <canvas id="gameCanvas"></canvas>
+                <button id="endGameBtn">End Game</button>
 
-    <button id="endGameBtn">End Game</button>
+                <!-- Main Menu / Setup Overlay -->
+                <div id="setupOverlay">
+                    <h1>40 Caps</h1>
 
-    <!-- Main Menu / Setup Overlay -->
-    <div id="setupOverlay">
-      <h1>40 Caps</h1>
-      <h2>A chip-flicking game</h2>
+                    <!-- View: Mode Selection (default) -->
+                    <div id="modeSelect">
+                        <button id="localPlayBtn" class="menu-btn">
+                            Local Play
+                        </button>
+                        <button id="onlinePlayBtn" class="menu-btn accent">
+                            Online Play
+                        </button>
+                    </div>
 
-      <!-- View: Mode Selection (default) -->
-      <div id="modeSelect">
-        <button id="localPlayBtn" class="menu-btn">Local Play</button>
-        <button id="onlinePlayBtn" class="menu-btn accent">Online Play</button>
-      </div>
+                    <!-- View: Local Setup -->
+                    <div id="localSetup" class="setup-view">
+                        <div class="setup-section">
+                            <label for="playerCount">Number of Players</label>
+                            <input
+                                type="number"
+                                id="playerCount"
+                                value="2"
+                                min="2"
+                                max="8"
+                            />
+                        </div>
 
-      <!-- View: Local Setup -->
-      <div id="localSetup" class="setup-view">
-        <div class="setup-section">
-          <label for="playerCount">Number of Players</label>
-          <input type="number" id="playerCount" value="2" min="2" max="8">
+                        <div class="setup-section">
+                            <label>Player Names</label>
+                            <div id="playerNamesContainer"></div>
+                        </div>
+
+                        <button id="advancedToggle">Advanced Settings</button>
+
+                        <div id="advancedSettings">
+                            <div class="slider-row">
+                                <label>Table Friction</label>
+                                <input
+                                    type="range"
+                                    id="frictionTable"
+                                    min="0.05"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.3"
+                                />
+                                <span class="slider-value" id="frictionTableVal"
+                                    >0.30</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Chip Top Friction</label>
+                                <input
+                                    type="range"
+                                    id="frictionChipTop"
+                                    min="0.05"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.4"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="frictionChipTopVal"
+                                    >0.40</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Chip Bottom Friction</label>
+                                <input
+                                    type="range"
+                                    id="frictionChipBottom"
+                                    min="0.05"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.5"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="frictionChipBottomVal"
+                                    >0.50</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Damping Scale</label>
+                                <input
+                                    type="range"
+                                    id="dampingScale"
+                                    min="1"
+                                    max="20"
+                                    step="0.5"
+                                    value="12"
+                                />
+                                <span class="slider-value" id="dampingScaleVal"
+                                    >12.0</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Chip Restitution</label>
+                                <input
+                                    type="range"
+                                    id="chipRestitution"
+                                    min="0"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.3"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="chipRestitutionVal"
+                                    >0.30</span
+                                >
+                            </div>
+                        </div>
+
+                        <button id="startBtn" class="menu-btn accent">
+                            Start Game
+                        </button>
+                        <button id="localBackBtn" class="back-btn">Back</button>
+                    </div>
+
+                    <!-- View: Online Menu (Create or Join) -->
+                    <div id="onlineMenu" class="setup-view">
+                        <div class="setup-section">
+                            <label for="onlineName">Your Name</label>
+                            <input
+                                type="text"
+                                id="onlineName"
+                                placeholder="Enter your name"
+                                maxlength="20"
+                            />
+                        </div>
+
+                        <button id="createRoomBtn" class="menu-btn accent">
+                            Create Room
+                        </button>
+
+                        <div id="onlineAdvToggle" class="advanced-toggle-link">
+                            Advanced Settings
+                        </div>
+                        <div
+                            id="onlineAdvSettings"
+                            class="advanced-settings-panel"
+                        >
+                            <div class="slider-row">
+                                <label>Table Friction</label>
+                                <input
+                                    type="range"
+                                    id="onFrictionTable"
+                                    min="0.05"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.3"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="onFrictionTableVal"
+                                    >0.30</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Chip Top Friction</label>
+                                <input
+                                    type="range"
+                                    id="onFrictionChipTop"
+                                    min="0.05"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.4"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="onFrictionChipTopVal"
+                                    >0.40</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Chip Bottom Friction</label>
+                                <input
+                                    type="range"
+                                    id="onFrictionChipBottom"
+                                    min="0.05"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.5"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="onFrictionChipBottomVal"
+                                    >0.50</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Damping Scale</label>
+                                <input
+                                    type="range"
+                                    id="onDampingScale"
+                                    min="1"
+                                    max="20"
+                                    step="0.5"
+                                    value="12"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="onDampingScaleVal"
+                                    >12.0</span
+                                >
+                            </div>
+                            <div class="slider-row">
+                                <label>Chip Restitution</label>
+                                <input
+                                    type="range"
+                                    id="onChipRestitution"
+                                    min="0"
+                                    max="1.0"
+                                    step="0.05"
+                                    value="0.3"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="onChipRestitutionVal"
+                                    >0.30</span
+                                >
+                            </div>
+                        </div>
+
+                        <div class="divider-text">or join an existing room</div>
+
+                        <div class="join-row">
+                            <input
+                                type="text"
+                                id="roomCodeInput"
+                                placeholder="Code"
+                                maxlength="4"
+                                inputmode="numeric"
+                                pattern="[0-9]{4}"
+                            />
+                            <button id="joinRoomBtn" class="menu-btn small">
+                                Join
+                            </button>
+                        </div>
+
+                        <div id="onlineError" class="error-msg"></div>
+                        <button id="onlineBackBtn" class="back-btn">
+                            Back
+                        </button>
+                    </div>
+
+                    <!-- View: Waiting Room / Lobby -->
+                    <div id="waitingRoom" class="setup-view">
+                        <div id="roomCodeDisplay">
+                            <span class="room-label">Room Code</span>
+                            <span id="roomCodeBig">----</span>
+                        </div>
+                        <div id="lobbyPlayerList"></div>
+                        <button
+                            id="lobbyStartBtn"
+                            class="menu-btn accent"
+                            style="display: none"
+                        >
+                            Start Game
+                        </button>
+                        <button
+                            id="leaveRoomBtn"
+                            class="back-btn"
+                            style="display: none"
+                        >
+                            Leave Room
+                        </button>
+                        <button
+                            id="closeRoomBtn"
+                            class="back-btn"
+                            style="display: none"
+                        >
+                            Close Room
+                        </button>
+                    </div>
+                </div>
+
+                <!-- End Game Overlay -->
+                <div id="endOverlay">
+                    <h1>Game Over</h1>
+                    <div id="endScoreboard"></div>
+                    <button id="playAgainBtn">Play Again</button>
+                </div>
+            </div>
+
+            <!-- Chat Panel (online only, shown/hidden via JS) -->
+            <div id="chatPanel">
+                <div id="chatMessages"></div>
+                <div id="chatInputArea">
+                    <textarea
+                        id="chatInput"
+                        placeholder="Type a message..."
+                        rows="2"
+                        maxlength="500"
+                    ></textarea>
+                    <button id="chatSendBtn">Send</button>
+                </div>
+            </div>
         </div>
 
-        <div class="setup-section">
-          <label>Player Names</label>
-          <div id="playerNamesContainer"></div>
-        </div>
-
-        <button id="advancedToggle">Advanced Settings</button>
-
-        <div id="advancedSettings">
-          <div class="slider-row">
-            <label>Table Friction</label>
-            <input type="range" id="frictionTable" min="0.05" max="1.0" step="0.05" value="0.3">
-            <span class="slider-value" id="frictionTableVal">0.30</span>
-          </div>
-          <div class="slider-row">
-            <label>Chip Top Friction</label>
-            <input type="range" id="frictionChipTop" min="0.05" max="1.0" step="0.05" value="0.4">
-            <span class="slider-value" id="frictionChipTopVal">0.40</span>
-          </div>
-          <div class="slider-row">
-            <label>Chip Bottom Friction</label>
-            <input type="range" id="frictionChipBottom" min="0.05" max="1.0" step="0.05" value="0.5">
-            <span class="slider-value" id="frictionChipBottomVal">0.50</span>
-          </div>
-          <div class="slider-row">
-            <label>Damping Scale</label>
-            <input type="range" id="dampingScale" min="1" max="20" step="0.5" value="12">
-            <span class="slider-value" id="dampingScaleVal">12.0</span>
-          </div>
-          <div class="slider-row">
-            <label>Chip Restitution</label>
-            <input type="range" id="chipRestitution" min="0" max="1.0" step="0.05" value="0.3">
-            <span class="slider-value" id="chipRestitutionVal">0.30</span>
-          </div>
-        </div>
-
-        <button id="startBtn" class="menu-btn accent">Start Game</button>
-        <button id="localBackBtn" class="back-btn">Back</button>
-      </div>
-
-      <!-- View: Online Menu (Create or Join) -->
-      <div id="onlineMenu" class="setup-view">
-        <div class="setup-section">
-          <label for="onlineName">Your Name</label>
-          <input type="text" id="onlineName" placeholder="Enter your name" maxlength="20">
-        </div>
-
-        <button id="createRoomBtn" class="menu-btn accent">Create Room</button>
-
-        <div id="onlineAdvToggle" class="advanced-toggle-link">Advanced Settings</div>
-        <div id="onlineAdvSettings" class="advanced-settings-panel">
-          <div class="slider-row">
-            <label>Table Friction</label>
-            <input type="range" id="onFrictionTable" min="0.05" max="1.0" step="0.05" value="0.3">
-            <span class="slider-value" id="onFrictionTableVal">0.30</span>
-          </div>
-          <div class="slider-row">
-            <label>Chip Top Friction</label>
-            <input type="range" id="onFrictionChipTop" min="0.05" max="1.0" step="0.05" value="0.4">
-            <span class="slider-value" id="onFrictionChipTopVal">0.40</span>
-          </div>
-          <div class="slider-row">
-            <label>Chip Bottom Friction</label>
-            <input type="range" id="onFrictionChipBottom" min="0.05" max="1.0" step="0.05" value="0.5">
-            <span class="slider-value" id="onFrictionChipBottomVal">0.50</span>
-          </div>
-          <div class="slider-row">
-            <label>Damping Scale</label>
-            <input type="range" id="onDampingScale" min="1" max="20" step="0.5" value="12">
-            <span class="slider-value" id="onDampingScaleVal">12.0</span>
-          </div>
-          <div class="slider-row">
-            <label>Chip Restitution</label>
-            <input type="range" id="onChipRestitution" min="0" max="1.0" step="0.05" value="0.3">
-            <span class="slider-value" id="onChipRestitutionVal">0.30</span>
-          </div>
-        </div>
-
-        <div class="divider-text">or join an existing room</div>
-
-        <div class="join-row">
-          <input type="text" id="roomCodeInput" placeholder="Code" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
-          <button id="joinRoomBtn" class="menu-btn small">Join</button>
-        </div>
-
-        <div id="onlineError" class="error-msg"></div>
-        <button id="onlineBackBtn" class="back-btn">Back</button>
-      </div>
-
-      <!-- View: Waiting Room / Lobby -->
-      <div id="waitingRoom" class="setup-view">
-        <div id="roomCodeDisplay">
-          <span class="room-label">Room Code</span>
-          <span id="roomCodeBig">----</span>
-        </div>
-        <div id="lobbyPlayerList"></div>
-        <button id="lobbyStartBtn" class="menu-btn accent" style="display:none">Start Game</button>
-        <button id="leaveRoomBtn" class="back-btn" style="display:none">Leave Room</button>
-        <button id="closeRoomBtn" class="back-btn" style="display:none">Close Room</button>
-      </div>
-    </div>
-
-    <!-- End Game Overlay -->
-    <div id="endOverlay">
-      <h1>Game Over</h1>
-      <div id="endScoreboard"></div>
-      <button id="playAgainBtn">Play Again</button>
-    </div>
-  </div>
-
-  <!-- Chat Panel (online only, shown/hidden via JS) -->
-  <div id="chatPanel">
-    <div id="chatMessages"></div>
-    <div id="chatInputArea">
-      <textarea id="chatInput" placeholder="Type a message..." rows="2" maxlength="500"></textarea>
-      <button id="chatSendBtn">Send</button>
-    </div>
-  </div>
-  </div>
-
-  <script type="module" src="game.js"></script>
-</body>
+        <script type="module" src="game.js"></script>
+    </body>
 </html>
