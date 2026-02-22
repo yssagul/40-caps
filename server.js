@@ -30,6 +30,13 @@ server.listen(PORT, () => console.log(`40 Caps server listening on port ${PORT}`
 // CONSTANTS (mirrored from client for server-side game logic)
 // ============================================================================
 
+// Timing
+const FAILURE_TOSS_DELAY = 1800; // ms before new toss after failure
+const DISCONNECT_ADVANCE_DELAY = 3000; // ms to auto-advance disconnected player
+const HEARTBEAT_INTERVAL = 30000;
+const ROOM_CLEANUP_INTERVAL = 60000;
+const ROOM_CLEANUP_TIMEOUT = 300000; // 5 minutes
+
 const IMPAIRMENT_IDS = [
   "wild_shooter",
   "daze",
@@ -112,41 +119,44 @@ function broadcastLobby(room) {
   });
 }
 
-// Send private player state: each player sees own impairments, only counts for others
+// Send player state to all connected players (impairments/buffs visible to everyone)
 function sendPrivatePlayerState(room) {
+  const playerView = room.players.map((p, idx) => ({
+    index: idx,
+    name: p.name,
+    failures: p.failures,
+    streak: p.streak,
+    impairments: [...p.impairments],
+    onFireBuffs: [...p.onFireBuffs],
+    connected: p.connected,
+  }));
+
   for (const player of room.players) {
     if (!player.connected) continue;
-
-    const playerView = room.players.map((p, idx) => {
-      if (p.id === player.id) {
-        return {
-          index: idx,
-          name: p.name,
-          failures: p.failures,
-          streak: p.streak,
-          impairments: [...p.impairments],
-          onFireBuffs: [...p.onFireBuffs],
-          connected: p.connected,
-        };
-      } else {
-        return {
-          index: idx,
-          name: p.name,
-          failures: p.failures,
-          streak: p.streak,
-          impairments: [...p.impairments],   // Visible to all (effects only apply to owner)
-          onFireBuffs: [...p.onFireBuffs],   // Visible to all
-          connected: p.connected,
-        };
-      }
-    });
-
     send(player.ws, {
       type: "player_state_update",
       players: playerView,
       yourIndex: room.players.indexOf(player),
     });
   }
+}
+
+/**
+ * Validate that the room is in an expected game phase and the sender is the active player.
+ * @param {string} clientId - the sender
+ * @param {string} expectedPhase - the phase the room must be in
+ * @param {"tosser"|"flicker"} role - which role the sender must hold
+ * @returns {{ room, player }} or null if validation fails
+ */
+function validatePhase(clientId, expectedPhase, role) {
+  const room = findRoomByClient(clientId);
+  if (!room || room.state !== "PLAYING") return null;
+  if (room.phase !== expectedPhase) return null;
+
+  const activeIndex = role === "tosser" ? room.tosserIndex : room.flickerIndex;
+  if (room.players[activeIndex]?.id !== clientId) return null;
+
+  return { room, player: room.players[activeIndex] };
 }
 
 // ============================================================================
@@ -188,7 +198,7 @@ setInterval(() => {
     ws.isAlive = false;
     ws.ping();
   });
-}, 30000);
+}, HEARTBEAT_INTERVAL);
 
 // Room cleanup: remove rooms with all players disconnected for 5+ minutes
 setInterval(() => {
@@ -196,7 +206,7 @@ setInterval(() => {
   for (const [code, room] of rooms) {
     if (room.players.every((p) => !p.connected)) {
       if (!room.cleanupStart) room.cleanupStart = now;
-      if (now - room.cleanupStart > 300000) {
+      if (now - room.cleanupStart > ROOM_CLEANUP_TIMEOUT) {
         rooms.delete(code);
         console.log(`Room ${code} cleaned up (all disconnected)`);
       }
@@ -204,7 +214,7 @@ setInterval(() => {
       room.cleanupStart = null;
     }
   }
-}, 60000);
+}, ROOM_CLEANUP_INTERVAL);
 
 // ============================================================================
 // MESSAGE ROUTER
@@ -460,10 +470,9 @@ function handleStartGame(ws, clientId) {
 // ============================================================================
 
 function handleTossResult(ws, clientId, msg) {
-  const room = findRoomByClient(clientId);
-  if (!room || room.state !== "PLAYING") return;
-  if (room.phase !== "TOSSING") return;
-  if (room.players[room.tosserIndex]?.id !== clientId) return;
+  const result = validatePhase(clientId, "TOSSING", "tosser");
+  if (!result) return;
+  const { room } = result;
   if (!Array.isArray(msg.positions) || msg.positions.length === 0) return;
 
   room.chipPositions = msg.positions;
@@ -489,10 +498,9 @@ function handleTossResult(ws, clientId, msg) {
 // ============================================================================
 
 function handleChipSelected(ws, clientId, msg) {
-  const room = findRoomByClient(clientId);
-  if (!room || room.state !== "PLAYING") return;
-  if (room.phase !== "SELECTING_CHIP") return;
-  if (room.players[room.flickerIndex]?.id !== clientId) return;
+  const result = validatePhase(clientId, "SELECTING_CHIP", "flicker");
+  if (!result) return;
+  const { room } = result;
   if (typeof msg.chipIndex !== "number") return;
 
   room.phase = "FLICK_ANGLE";
@@ -505,10 +513,9 @@ function handleChipSelected(ws, clientId, msg) {
 }
 
 function handleAngleLocked(ws, clientId, msg) {
-  const room = findRoomByClient(clientId);
-  if (!room || room.state !== "PLAYING") return;
-  if (room.phase !== "FLICK_ANGLE") return;
-  if (room.players[room.flickerIndex]?.id !== clientId) return;
+  const result = validatePhase(clientId, "FLICK_ANGLE", "flicker");
+  if (!result) return;
+  const { room } = result;
   if (typeof msg.angle !== "number") return;
 
   room.phase = "FLICK_POWER";
@@ -521,10 +528,9 @@ function handleAngleLocked(ws, clientId, msg) {
 }
 
 function handlePowerLocked(ws, clientId, msg) {
-  const room = findRoomByClient(clientId);
-  if (!room || room.state !== "PLAYING") return;
-  if (room.phase !== "FLICK_POWER") return;
-  if (room.players[room.flickerIndex]?.id !== clientId) return;
+  const result = validatePhase(clientId, "FLICK_POWER", "flicker");
+  if (!result) return;
+  const { room } = result;
   if (typeof msg.power !== "number" || typeof msg.angle !== "number") return;
 
   room.phase = "FLICK_ANIMATING";
@@ -538,9 +544,9 @@ function handlePowerLocked(ws, clientId, msg) {
 }
 
 function handlePhysicsFrame(ws, clientId, msg) {
-  const room = findRoomByClient(clientId);
-  if (!room || room.phase !== "FLICK_ANIMATING") return;
-  if (room.players[room.flickerIndex]?.id !== clientId) return;
+  const result = validatePhase(clientId, "FLICK_ANIMATING", "flicker");
+  if (!result) return;
+  const { room } = result;
   if (!Array.isArray(msg.chips)) return;
 
   // Relay to all except sender
@@ -555,13 +561,10 @@ function handlePhysicsFrame(ws, clientId, msg) {
 // ============================================================================
 
 function handleFlickResult(ws, clientId, msg) {
-  const room = findRoomByClient(clientId);
-  if (!room || room.state !== "PLAYING") return;
-  if (room.phase !== "FLICK_ANIMATING") return;
-  if (room.players[room.flickerIndex]?.id !== clientId) return;
+  const result = validatePhase(clientId, "FLICK_ANIMATING", "flicker");
+  if (!result) return;
+  const { room, player: flicker } = result;
   if (typeof msg.success !== "boolean") return;
-
-  const flicker = room.players[room.flickerIndex];
   const prevFlickerIndex = room.flickerIndex;
 
   // Store final chip positions
@@ -685,7 +688,7 @@ function handleFlickResult(ws, clientId, msg) {
         tosserIndex: room.tosserIndex,
         flickerIndex: room.flickerIndex,
       });
-    }, 1800);
+    }, FAILURE_TOSS_DELAY);
   }
 }
 
@@ -775,7 +778,7 @@ function handleDisconnect(ws, clientId) {
         if (!room.players[playerIndex]?.connected) {
           autoAdvanceTurn(room, playerIndex);
         }
-      }, 3000);
+      }, DISCONNECT_ADVANCE_DELAY);
     }
   }
 }

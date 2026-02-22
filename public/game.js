@@ -307,8 +307,8 @@ function drawPowerBar() {
 }
 
 function drawImpairmentBadge(x, y, abbr, color, name, desc, kind) {
-  const w = 16,
-    h = 14;
+  const w = CONFIG.BADGE_WIDTH,
+    h = CONFIG.BADGE_HEIGHT;
   ctx.fillStyle = color;
   ctx.fillRect(x, y - h + 2, w, h);
   ctx.fillStyle = "#fff";
@@ -330,7 +330,7 @@ function drawBadgeTooltip() {
     lastTooltipMouseX = mouseCanvasX;
     lastTooltipMouseY = mouseCanvasY;
 
-    const PAD = 4;
+    const PAD = CONFIG.BADGE_HOVER_PAD;
     const hit = State.badgeRects.find(
       (r) =>
         mouseCanvasX >= r.x - PAD &&
@@ -351,7 +351,7 @@ function drawBadgeTooltip() {
     const nameW = ctx.measureText(hit.name).width;
     ctx.font = descFont;
 
-    const maxTextW = 170;
+    const maxTextW = CONFIG.TOOLTIP_MAX_TEXT_WIDTH;
     const words = hit.desc.split(" ");
     const descLines = [];
     let line = "";
@@ -372,9 +372,9 @@ function drawBadgeTooltip() {
       if (w > descMaxW) descMaxW = w;
     }
 
-    const padX = 8, padY = 6;
-    const lineH = 14;
-    const gapAfterName = 4;
+    const padX = CONFIG.TOOLTIP_PAD_X, padY = CONFIG.TOOLTIP_PAD_Y;
+    const lineH = CONFIG.TOOLTIP_LINE_HEIGHT;
+    const gapAfterName = CONFIG.TOOLTIP_GAP_AFTER_NAME;
     const tipW = Math.max(nameW, descMaxW) + padX * 2;
     const tipH = padY + lineH + gapAfterName + descLines.length * lineH + padY;
 
@@ -391,7 +391,7 @@ function drawBadgeTooltip() {
   const { hit, nameFont, descFont, descLines, padX, padY, lineH, gapAfterName, tipW, tipH, tx, ty } = cachedTooltipHit;
 
   // Rounded rect background
-  const r = 5;
+  const r = CONFIG.TOOLTIP_RADIUS;
   ctx.fillStyle = "rgba(10, 10, 30, 0.92)";
   ctx.beginPath();
   ctx.moveTo(tx + r, ty);
@@ -538,7 +538,7 @@ function drawHUD() {
   }
 
   // Transient message
-  if (State.message && performance.now() - State.messageTimer < 2500) {
+  if (State.message && performance.now() - State.messageTimer < CONFIG.MESSAGE_DISPLAY_DURATION) {
     ctx.fillStyle = "#ffb703";
     ctx.font = "bold 16px sans-serif";
     ctx.textAlign = "center";

@@ -526,6 +526,6 @@ export function onFlickFailure(reason) {
     if (State.phase !== "EVALUATING") return;
     State.flickerIndex = (State.tosserIndex + 1) % State.players.length;
     performToss();
-  }, 1800);
+  }, CONFIG.FAILURE_TOSS_DELAY);
   State.phase = "EVALUATING";
 }

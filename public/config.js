@@ -48,6 +48,22 @@ export const CONFIG = {
   ARROW_LENGTH_MAX: 120,
   GATE_LINE_COLOR: "rgba(255, 255, 255, 0.4)",
 
+  // Timing
+  FAILURE_TOSS_DELAY: 1800, // ms before new toss after failure
+  DISCONNECT_ADVANCE_DELAY: 3000, // ms to auto-advance disconnected player
+  MESSAGE_DISPLAY_DURATION: 2500, // ms to show transient messages
+
+  // Badges & Tooltips
+  BADGE_WIDTH: 16,
+  BADGE_HEIGHT: 14,
+  BADGE_HOVER_PAD: 4,
+  TOOLTIP_PAD_X: 8,
+  TOOLTIP_PAD_Y: 6,
+  TOOLTIP_LINE_HEIGHT: 14,
+  TOOLTIP_GAP_AFTER_NAME: 4,
+  TOOLTIP_RADIUS: 5,
+  TOOLTIP_MAX_TEXT_WIDTH: 170,
+
   // Players
   PLAYER_COLORS: [
     "#e63946",

@@ -1,3 +1,43 @@
+/* ===== CSS Custom Properties ===== */
+:root {
+  /* Brand / Accent */
+  --color-accent: #ffb703;
+  --color-accent-hover: #ffc633;
+  --color-accent-glow: rgba(255, 183, 3, 0.3);
+
+  /* Backgrounds */
+  --color-bg-body: #1a1a2e;
+  --color-bg-overlay: rgba(10, 10, 30, 0.95);
+  --color-bg-input: #2a2a4a;
+  --color-bg-btn: #3a3a5a;
+  --color-bg-btn-hover: #4a4a6a;
+  --color-bg-danger: #553333;
+  --color-bg-danger-hover: #774444;
+
+  /* Text */
+  --color-text: #e0e0e0;
+  --color-text-muted: #8899aa;
+  --color-text-label: #aab;
+  --color-text-link: #6688aa;
+  --color-text-link-hover: #88aacc;
+  --color-text-divider: #667;
+  --color-text-slider-label: #99a;
+  --color-text-slider-value: #ccd;
+  --color-text-error: #e05555;
+  --color-text-danger: #ddd;
+
+  /* Borders */
+  --color-border: #444;
+  --color-border-btn: #555;
+  --color-border-danger: #774444;
+
+  /* Misc */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --shadow-canvas: 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,13 +45,13 @@
 }
 
 body {
-  background: #1a1a2e;
+  background: var(--color-bg-body);
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #e0e0e0;
+  color: var(--color-text);
   overflow: hidden;
 }
 
@@ -21,8 +61,8 @@ body {
 
 canvas {
   display: block;
-  border-radius: 8px;
-  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-canvas);
 }
 
 /* ===== Setup / Lobby Overlay ===== */
@@ -32,12 +72,12 @@ canvas {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(10, 10, 30, 0.95);
+  background: var(--color-bg-overlay);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   z-index: 10;
   overflow-y: auto;
 }
@@ -52,14 +92,14 @@ canvas {
 #setupOverlay h1 {
   font-size: 2.5em;
   margin-bottom: 0.3em;
-  color: #ffb703;
-  text-shadow: 0 0 20px rgba(255, 183, 3, 0.3);
+  color: var(--color-accent);
+  text-shadow: 0 0 20px var(--color-accent-glow);
 }
 
 #setupOverlay h2 {
   font-size: 1em;
   margin-bottom: 1.5em;
-  color: #8899aa;
+  color: var(--color-text-muted);
   font-weight: normal;
 }
 
@@ -85,16 +125,16 @@ canvas {
   display: block;
   margin-bottom: 0.3em;
   font-size: 0.9em;
-  color: #aab;
+  color: var(--color-text-label);
 }
 
 .setup-section input[type="number"],
 .setup-section input[type="text"] {
-  background: #2a2a4a;
-  border: 1px solid #444;
-  color: #e0e0e0;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 1em;
   text-align: center;
   width: 200px;
@@ -105,10 +145,10 @@ canvas {
   margin-top: 0.6em;
   padding: 10px 40px;
   font-size: 1.05em;
-  background: #3a3a5a;
-  color: #e0e0e0;
-  border: 1px solid #555;
-  border-radius: 6px;
+  background: var(--color-bg-btn);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-btn);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: bold;
   transition: background 0.2s;
@@ -117,17 +157,17 @@ canvas {
 }
 
 .menu-btn:hover {
-  background: #4a4a6a;
+  background: var(--color-bg-btn-hover);
 }
 
 .menu-btn.accent {
-  background: #ffb703;
-  color: #1a1a2e;
+  background: var(--color-accent);
+  color: var(--color-bg-body);
   border: none;
 }
 
 .menu-btn.accent:hover {
-  background: #ffc633;
+  background: var(--color-accent-hover);
 }
 
 .menu-btn.small {
@@ -139,7 +179,7 @@ canvas {
 .back-btn {
   background: none;
   border: none;
-  color: #6688aa;
+  color: var(--color-text-link);
   cursor: pointer;
   font-size: 0.85em;
   margin-top: 1.2em;
@@ -147,7 +187,7 @@ canvas {
 }
 
 .back-btn:hover {
-  color: #88aacc;
+  color: var(--color-text-link-hover);
 }
 
 /* ===== Player Names ===== */
@@ -168,7 +208,7 @@ canvas {
 .advanced-toggle-link {
   background: none;
   border: none;
-  color: #6688aa;
+  color: var(--color-text-link);
   cursor: pointer;
   font-size: 0.85em;
   margin: 0.8em 0;
@@ -198,7 +238,7 @@ canvas {
 
 .slider-row label {
   flex: 1;
-  color: #99a;
+  color: var(--color-text-slider-label);
 }
 
 .slider-row input[type="range"] {
@@ -209,7 +249,7 @@ canvas {
 .slider-row .slider-value {
   width: 40px;
   text-align: right;
-  color: #ccd;
+  color: var(--color-text-slider-value);
   font-family: monospace;
 }
 
@@ -217,7 +257,7 @@ canvas {
 .divider-text {
   margin: 1em 0 0.6em;
   font-size: 0.8em;
-  color: #667;
+  color: var(--color-text-divider);
 }
 
 .join-row {
@@ -233,15 +273,15 @@ canvas {
   text-align: center;
   letter-spacing: 0.25em;
   font-family: monospace;
-  background: #2a2a4a;
-  border: 1px solid #444;
-  color: #e0e0e0;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .error-msg {
-  color: #e05555;
+  color: var(--color-text-error);
   font-size: 0.85em;
   margin-top: 0.6em;
   min-height: 1.2em;
@@ -256,17 +296,17 @@ canvas {
 #roomCodeDisplay .room-label {
   display: block;
   font-size: 0.85em;
-  color: #8899aa;
+  color: var(--color-text-muted);
   margin-bottom: 0.2em;
 }
 
 #roomCodeBig {
   font-size: 3em;
   font-weight: bold;
-  color: #ffb703;
+  color: var(--color-accent);
   letter-spacing: 0.3em;
   font-family: monospace;
-  text-shadow: 0 0 20px rgba(255, 183, 3, 0.3);
+  text-shadow: 0 0 20px var(--color-accent-glow);
 }
 
 #lobbyPlayerList {
@@ -282,18 +322,13 @@ canvas {
 
 .lobby-player.host::after {
   content: " (Host)";
-  color: #ffb703;
+  color: var(--color-accent);
   font-size: 0.85em;
 }
 
 .lobby-player.disconnected {
   opacity: 0.4;
   text-decoration: line-through;
-}
-
-.lobby-player.you {
-  color: #ffb703;
-  font-weight: bold;
 }
 
 /* ===== End Game Overlay ===== */
@@ -303,12 +338,12 @@ canvas {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(10, 10, 30, 0.95);
+  background: var(--color-bg-overlay);
   display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   z-index: 10;
 }
 
@@ -318,7 +353,7 @@ canvas {
 
 #endOverlay h1 {
   font-size: 2em;
-  color: #ffb703;
+  color: var(--color-accent);
   margin-bottom: 0.5em;
 }
 
@@ -329,17 +364,17 @@ canvas {
 }
 
 #endScoreboard .winner {
-  color: #ffb703;
+  color: var(--color-accent);
   font-weight: bold;
 }
 
 #playAgainBtn {
   padding: 10px 40px;
   font-size: 1.1em;
-  background: #ffb703;
-  color: #1a1a2e;
+  background: var(--color-accent);
+  color: var(--color-bg-body);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: bold;
 }
@@ -351,10 +386,10 @@ canvas {
   right: 10px;
   padding: 6px 16px;
   font-size: 0.8em;
-  background: #553333;
-  color: #ddd;
-  border: 1px solid #774444;
-  border-radius: 4px;
+  background: var(--color-bg-danger);
+  color: var(--color-text-danger);
+  border: 1px solid var(--color-border-danger);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   z-index: 5;
   display: none;
@@ -365,5 +400,5 @@ canvas {
 }
 
 #endGameBtn:hover {
-  background: #774444;
+  background: var(--color-bg-danger-hover);
 }

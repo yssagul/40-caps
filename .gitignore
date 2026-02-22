@@ -1,3 +1,8 @@
 node_modules/
 .DS_Store
 .claude/
+.env
+*.log
+.vscode/
+.idea/
+*.swp
