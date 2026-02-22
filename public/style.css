@@ -46,10 +46,7 @@
 
 body {
   background: var(--color-bg-body);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+  height: 100dvh;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: var(--color-text);
   overflow: hidden;
@@ -403,10 +400,23 @@ canvas {
   background: var(--color-bg-danger-hover);
 }
 
-/* ===== App Wrapper (flex row for canvas + chat) ===== */
+/* ===== App Wrapper (3-column grid: spacer | game+chat | spacer) ===== */
 #appWrapper {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  min-height: 100dvh;
+}
+
+/* Game container sits in the center column */
+#appWrapper > #gameContainer {
+  grid-column: 2;
+}
+
+/* Chat panel sits in the right column, aligned to the game's left edge */
+#appWrapper > #chatPanel {
+  grid-column: 3;
+  align-self: stretch;
 }
 
 /* ===== Chat Panel ===== */
@@ -414,9 +424,8 @@ canvas {
   display: none;
   flex-direction: column;
   width: 280px;
-  height: 760px;
+  height: 100dvh;
   background: var(--color-bg-overlay);
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   border-left: 1px solid var(--color-border);
 }
 
