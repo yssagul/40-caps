@@ -824,6 +824,7 @@ const lobbyStartBtn = document.getElementById("lobbyStartBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 const closeRoomBtn = document.getElementById("closeRoomBtn");
 const onlineError = document.getElementById("onlineError");
+const rulesPanel = document.getElementById("rulesPanel");
 const chatPanel = document.getElementById("chatPanel");
 const chatMessages = document.getElementById("chatMessages");
 const chatInput = document.getElementById("chatInput");
@@ -1017,6 +1018,7 @@ endGameBtn.addEventListener("click", () => {
 
 playAgainBtn.addEventListener("click", () => {
   endOverlay.classList.remove("visible");
+  rulesPanel.classList.remove("visible");
   if (State.isOnline) {
     // Return to lobby (waiting room)
     setupOverlay.style.display = "flex";
@@ -1053,6 +1055,7 @@ function startGame(players) {
   setupOverlay.style.display = "none";
   endOverlay.classList.remove("visible");
   endGameBtn.classList.add("visible");
+  rulesPanel.classList.add("visible");
 
   State.isOnline = false;
   State.myPlayerIndex = -1;
@@ -1076,6 +1079,7 @@ function startGameOnline(players, config, activePlayerIndex) {
   setupOverlay.style.display = "none";
   endOverlay.classList.remove("visible");
   endGameBtn.classList.add("visible");
+  rulesPanel.classList.add("visible");
 
   State.isOnline = true;
   State.myPlayerIndex = net.getMyIndex();

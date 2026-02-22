@@ -9,6 +9,45 @@
 </head>
 <body>
   <div id="appWrapper">
+
+  <!-- Rules Panel (left column, shown during gameplay) -->
+  <div id="rulesPanel">
+    <div id="rulesContent">
+      <h3>How to Play</h3>
+      <p>3 chips are tossed onto the table. Pick one to flick through
+         the <em>gate</em> &mdash; the gap between the other two.</p>
+      <p>Set your <strong>angle</strong>, then <strong>power</strong> &mdash;
+         each oscillates and you click to lock it in.</p>
+
+      <h3>Success</h3>
+      <ul>
+        <li>Chip passes through the gate</li>
+        <li>Doesn't touch either gate chip</li>
+        <li>Doesn't hit a wall</li>
+      </ul>
+
+      <h3>Failure</h3>
+      <p>Miss the gate, touch a gate chip, or hit a wall.
+         You get a failure point and must toss again.</p>
+      <p>The player with the <strong>fewest failures</strong> wins.</p>
+
+      <h3>Streaks</h3>
+      <ul>
+        <li><strong>3</strong> in a row &mdash; gain a random buff</li>
+        <li><strong>5</strong> in a row &mdash; cure a random impairment</li>
+      </ul>
+      <p>Streak resets on any failure.</p>
+
+      <h3>Impairments</h3>
+      <p>Every <strong>5 failures</strong>, you gain a random impairment
+         that makes your next flicks harder.</p>
+
+      <h3>Buffs</h3>
+      <p>Every <strong>3 consecutive successes</strong>, you gain a random
+         buff that helps for one flick.</p>
+    </div>
+  </div>
+
   <div id="gameContainer">
     <canvas id="gameCanvas"></canvas>
 
