@@ -64,7 +64,7 @@ canvas.addEventListener("click", (e) => {
 
   // In online mode, only allow interaction when it is my turn
   if (State.isOnline && CONFIG.PHASES_INTERACTIVE.includes(State.phase)) {
-    if (!net.isMyTurn(State.flickerIndex)) return;
+    if (!net.isMyTurn(State.activePlayerIndex)) return;
   }
 
   switch (State.phase) {
@@ -434,13 +434,8 @@ function drawPlayerScores() {
 
   for (let i = 0; i < State.players.length; i++) {
     const p = State.players[i];
-    const isActive =
-      CONFIG.PHASES_INTERACTIVE.includes(State.phase) && i === State.flickerIndex;
-    const isTosser =
-      (State.phase === "TOSSING" || State.phase === "TOSS_ANIMATING") &&
-      i === State.tosserIndex;
-
-    const highlighted = isActive || isTosser;
+    const highlighted = i === State.activePlayerIndex &&
+      State.phase !== "SETUP" && State.phase !== "GAME_OVER";
     ctx.fillStyle = highlighted
       ? CONFIG.PLAYER_COLORS[i % CONFIG.PLAYER_COLORS.length]
       : "#777";
@@ -466,16 +461,16 @@ function drawInstructions() {
   let instruction = "";
   switch (State.phase) {
     case "TOSS_ANIMATING":
-      instruction = `${state.currentTosserName()} tosses...`;
+      instruction = `${state.currentActivePlayerName()} tosses...`;
       break;
     case "SELECTING_CHIP":
-      instruction = `${state.currentFlickerName()}: Click a chip to flick`;
+      instruction = `${state.currentActivePlayerName()}: Click a chip to flick`;
       break;
     case "FLICK_ANGLE":
-      instruction = `${state.currentFlickerName()}: Click to set angle`;
+      instruction = `${state.currentActivePlayerName()}: Click to set angle`;
       break;
     case "FLICK_POWER":
-      instruction = `${state.currentFlickerName()}: Click to set power`;
+      instruction = `${state.currentActivePlayerName()}: Click to set power`;
       break;
     case "FLICK_ANIMATING":
       instruction = "Flicking...";
@@ -512,14 +507,14 @@ function drawHUD() {
 function getArrowAngleForDisplay() {
   // False Confidence: display uses narrow ±10° range, but actual is full ±20°
   if (
-    state.flickerHasImpairment("false_confidence") &&
+    state.activePlayerHasImpairment("false_confidence") &&
     State.phase === "FLICK_ANGLE"
   ) {
     const narrowRad = (10 * Math.PI) / 180;
     return State.centerAngle + (State.oscillator * 2 - 1) * narrowRad;
   }
   // Skilled Shooter buff: display AND actual use effective range
-  if (state.flickerHasBuff("skilled_shooter") && State.phase === "FLICK_ANGLE") {
+  if (state.activePlayerHasBuff("skilled_shooter") && State.phase === "FLICK_ANGLE") {
     const effRad = (State.effectiveAngleRange * Math.PI) / 180;
     return State.centerAngle + (State.oscillator * 2 - 1) * effRad;
   }
@@ -527,7 +522,7 @@ function getArrowAngleForDisplay() {
 }
 
 function getArrowLengthMultiplier() {
-  return state.flickerHasBuff("long_shot") ? 2.0 : 1.0;
+  return state.activePlayerHasBuff("long_shot") ? 2.0 : 1.0;
 }
 
 function drawFlickArrow() {
@@ -565,20 +560,20 @@ function drawNormalScene(offsetX, offsetY, alpha) {
   ctx.globalAlpha = prevAlpha;
 }
 
-function drawDoubleVision(isMyFlick) {
+function drawDoubleVision(isMyTurn) {
   if (
-    isMyFlick &&
-    state.flickerHasImpairment("double_vision") &&
+    isMyTurn &&
+    state.activePlayerHasImpairment("double_vision") &&
     CONFIG.PHASES_DOUBLE_VISION.includes(State.phase)
   ) {
     drawNormalScene(State.doubleVisionOffset.x, State.doubleVisionOffset.y, 0.35);
   }
 }
 
-function drawBlackoutOverlay(isMyFlick) {
+function drawBlackoutOverlay(isMyTurn) {
   if (
-    isMyFlick &&
-    state.flickerHasImpairment("blackout") &&
+    isMyTurn &&
+    state.activePlayerHasImpairment("blackout") &&
     CONFIG.PHASES_BLACKOUT.includes(State.phase)
   ) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
@@ -593,10 +588,10 @@ function render() {
   drawTable();
   drawNormalScene(0, 0, 1.0);
 
-  const isMyFlick = !State.isOnline || State.myPlayerIndex === State.flickerIndex;
-  drawDoubleVision(isMyFlick);
+  const isMyTurn = !State.isOnline || State.myPlayerIndex === State.activePlayerIndex;
+  drawDoubleVision(isMyTurn);
   drawHUD();
-  drawBlackoutOverlay(isMyFlick);
+  drawBlackoutOverlay(isMyTurn);
   drawBadgeTooltip();
 }
 
@@ -625,7 +620,7 @@ function updateOscillators(dt) {
     bounceOscillator(dt, state.getEffectiveAngleSpeed());
 
     // Skilled Shooter narrows ACTUAL range; False Confidence does NOT
-    const actualRange = state.flickerHasBuff("skilled_shooter")
+    const actualRange = state.activePlayerHasBuff("skilled_shooter")
       ? 10
       : CONFIG.FLICK_ANGLE_RANGE;
     const rangeRad = (actualRange * Math.PI) / 180;
@@ -674,8 +669,10 @@ function updateTossAnimation(now) {
       chip.eligible = true;
     }
 
+    // Advance to the next player who will flick
+    State.activePlayerIndex = (State.activePlayerIndex + 1) % State.players.length;
     State.phase = "SELECTING_CHIP";
-    state.setMessage(`${state.currentFlickerName()}: Pick a chip to flick!`);
+    state.setMessage(`${state.currentActivePlayerName()}: Pick a chip to flick!`);
   }
 }
 
@@ -683,7 +680,7 @@ function updateFlickAnimation() {
   if (State.phase !== "FLICK_ANIMATING") return;
 
   // In online mode and not my turn: skip physics, lerp toward remote targets
-  if (State.isOnline && !net.isMyTurn(State.flickerIndex)) {
+  if (State.isOnline && !net.isMyTurn(State.activePlayerIndex)) {
     if (State.remoteChipTargets && State.chips.length === State.remoteChipTargets.length) {
       const lerpFactor = 0.3;
       for (let i = 0; i < State.chips.length; i++) {
@@ -699,7 +696,7 @@ function updateFlickAnimation() {
     return;
   }
 
-  // Active flicker (or local play): run physics + gate detection + evaluation
+  // Active player (or local play): run physics + gate detection + evaluation
   physics.checkGateCrossing(State, state.getGateChips);
   physics.processCollisionEvents(State, state.getGateChips);
 
@@ -716,7 +713,7 @@ function update(now, dt) {
   // Step the physics world with event queue for collision detection
   if (State.phase === "FLICK_ANIMATING") {
     // In online mode and not my turn, skip world.step (using lerp instead)
-    if (State.isOnline && !net.isMyTurn(State.flickerIndex)) {
+    if (State.isOnline && !net.isMyTurn(State.activePlayerIndex)) {
       // No physics step — handled by lerp in updateFlickAnimation
     } else {
       physics.stepWorld();
@@ -1034,8 +1031,7 @@ function startGame(players) {
   State.isOnline = false;
   State.myPlayerIndex = -1;
   State.players = players;
-  State.tosserIndex = 0;
-  State.flickerIndex = 1 % players.length;
+  State.activePlayerIndex = 0;
   State.phase = "TOSSING";
 
   // Create fresh Rapier world (old one is garbage collected)
@@ -1050,7 +1046,7 @@ function startGame(players) {
 // START GAME (Online)
 // ============================================================================
 
-function startGameOnline(players, config, tosserIndex, flickerIndex) {
+function startGameOnline(players, config, activePlayerIndex) {
   setupOverlay.style.display = "none";
   endOverlay.classList.remove("visible");
   endGameBtn.classList.add("visible");
@@ -1064,8 +1060,7 @@ function startGameOnline(players, config, tosserIndex, flickerIndex) {
 
   State.players = players.map((p) => state.createPlayer(p.name));
 
-  State.tosserIndex = tosserIndex;
-  State.flickerIndex = flickerIndex;
+  State.activePlayerIndex = activePlayerIndex;
   State.phase = "TOSSING";
 
   // Create fresh Rapier world

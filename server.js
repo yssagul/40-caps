@@ -145,18 +145,16 @@ function sendPrivatePlayerState(room) {
  * Validate that the room is in an expected game phase and the sender is the active player.
  * @param {string} clientId - the sender
  * @param {string} expectedPhase - the phase the room must be in
- * @param {"tosser"|"flicker"} role - which role the sender must hold
  * @returns {{ room, player }} or null if validation fails
  */
-function validatePhase(clientId, expectedPhase, role) {
+function validatePhase(clientId, expectedPhase) {
   const room = findRoomByClient(clientId);
   if (!room || room.state !== "PLAYING") return null;
   if (room.phase !== expectedPhase) return null;
 
-  const activeIndex = role === "tosser" ? room.tosserIndex : room.flickerIndex;
-  if (room.players[activeIndex]?.id !== clientId) return null;
+  if (room.players[room.activePlayerIndex]?.id !== clientId) return null;
 
-  return { room, player: room.players[activeIndex] };
+  return { room, player: room.players[room.activePlayerIndex] };
 }
 
 // ============================================================================
@@ -292,8 +290,7 @@ function handleCreateRoom(ws, clientId, msg) {
       },
     ],
     state: "LOBBY",
-    tosserIndex: 0,
-    flickerIndex: 0,
+    activePlayerIndex: 0,
     phase: "LOBBY",
     chipPositions: [],
     chipStates: [],
@@ -405,8 +402,7 @@ function handleReconnect(ws, newClientId, msg) {
     config: room.config,
     roomState: room.state,
     phase: room.phase,
-    tosserIndex: room.tosserIndex,
-    flickerIndex: room.flickerIndex,
+    activePlayerIndex: room.activePlayerIndex,
     chipPositions: room.chipPositions,
     chipStates: room.chipStates,
   });
@@ -431,8 +427,7 @@ function handleStartGame(ws, clientId) {
     return send(ws, { type: "error", message: "Need at least 2 players" });
 
   room.state = "PLAYING";
-  room.tosserIndex = 0;
-  room.flickerIndex = 1 % room.players.length;
+  room.activePlayerIndex = 0;
   room.phase = "TOSSING";
 
   // Reset all player stats
@@ -453,15 +448,13 @@ function handleStartGame(ws, clientId) {
       index: i,
     })),
     config: room.config,
-    tosserIndex: room.tosserIndex,
-    flickerIndex: room.flickerIndex,
+    activePlayerIndex: room.activePlayerIndex,
   });
 
-  // Tell the tosser to generate the toss
+  // Tell the active player to generate the toss
   broadcastToRoom(room, {
     type: "request_toss",
-    tosserIndex: room.tosserIndex,
-    flickerIndex: room.flickerIndex,
+    activePlayerIndex: room.activePlayerIndex,
   });
 }
 
@@ -470,7 +463,7 @@ function handleStartGame(ws, clientId) {
 // ============================================================================
 
 function handleTossResult(ws, clientId, msg) {
-  const result = validatePhase(clientId, "TOSSING", "tosser");
+  const result = validatePhase(clientId, "TOSSING");
   if (!result) return;
   const { room } = result;
   if (!Array.isArray(msg.positions) || msg.positions.length === 0) return;
@@ -484,12 +477,12 @@ function handleTossResult(ws, clientId, msg) {
   broadcastToRoom(room, {
     type: "toss_broadcast",
     positions: msg.positions,
-    tosserIndex: room.tosserIndex,
-    flickerIndex: room.flickerIndex,
+    activePlayerIndex: room.activePlayerIndex,
   });
 
-  // Transition to SELECTING_CHIP so the server is ready to accept chip_selected
-  // once the client-side toss animation completes
+  // Advance to the next player who will flick
+  room.activePlayerIndex =
+    (room.activePlayerIndex + 1) % room.players.length;
   room.phase = "SELECTING_CHIP";
 }
 
@@ -498,7 +491,7 @@ function handleTossResult(ws, clientId, msg) {
 // ============================================================================
 
 function handleChipSelected(ws, clientId, msg) {
-  const result = validatePhase(clientId, "SELECTING_CHIP", "flicker");
+  const result = validatePhase(clientId, "SELECTING_CHIP");
   if (!result) return;
   const { room } = result;
   if (typeof msg.chipIndex !== "number") return;
@@ -508,12 +501,12 @@ function handleChipSelected(ws, clientId, msg) {
   broadcastToRoom(room, {
     type: "chip_selected_broadcast",
     chipIndex: msg.chipIndex,
-    flickerIndex: room.flickerIndex,
+    activePlayerIndex: room.activePlayerIndex,
   });
 }
 
 function handleAngleLocked(ws, clientId, msg) {
-  const result = validatePhase(clientId, "FLICK_ANGLE", "flicker");
+  const result = validatePhase(clientId, "FLICK_ANGLE");
   if (!result) return;
   const { room } = result;
   if (typeof msg.angle !== "number") return;
@@ -528,7 +521,7 @@ function handleAngleLocked(ws, clientId, msg) {
 }
 
 function handlePowerLocked(ws, clientId, msg) {
-  const result = validatePhase(clientId, "FLICK_POWER", "flicker");
+  const result = validatePhase(clientId, "FLICK_POWER");
   if (!result) return;
   const { room } = result;
   if (typeof msg.power !== "number" || typeof msg.angle !== "number") return;
@@ -544,7 +537,7 @@ function handlePowerLocked(ws, clientId, msg) {
 }
 
 function handlePhysicsFrame(ws, clientId, msg) {
-  const result = validatePhase(clientId, "FLICK_ANIMATING", "flicker");
+  const result = validatePhase(clientId, "FLICK_ANIMATING");
   if (!result) return;
   const { room } = result;
   if (!Array.isArray(msg.chips)) return;
@@ -561,11 +554,11 @@ function handlePhysicsFrame(ws, clientId, msg) {
 // ============================================================================
 
 function handleFlickResult(ws, clientId, msg) {
-  const result = validatePhase(clientId, "FLICK_ANIMATING", "flicker");
+  const result = validatePhase(clientId, "FLICK_ANIMATING");
   if (!result) return;
-  const { room, player: flicker } = result;
+  const { room, player: activePlayer } = result;
   if (typeof msg.success !== "boolean") return;
-  const prevFlickerIndex = room.flickerIndex;
+  const prevActivePlayerIndex = room.activePlayerIndex;
 
   // Store final chip positions
   if (msg.finalPositions) {
@@ -576,12 +569,12 @@ function handleFlickResult(ws, clientId, msg) {
     // --- SUCCESS ---
 
     // Snapshot buffs that were active FOR this flick (to consume after)
-    const buffsUsedThisFlick = [...flicker.onFireBuffs];
+    const buffsUsedThisFlick = [...activePlayer.onFireBuffs];
 
     // Consume the buffs that were active for this flick
-    flicker.onFireBuffs = [];
+    activePlayer.onFireBuffs = [];
 
-    flicker.streak++;
+    activePlayer.streak++;
 
     // The flicked chip is ineligible for the next turn only;
     // all other chips become eligible again
@@ -598,27 +591,27 @@ function handleFlickResult(ws, clientId, msg) {
     const streakEvents = [];
 
     // Every 3 successes: earn an On Fire buff
-    if (flicker.streak % 3 === 0) {
+    if (activePlayer.streak % 3 === 0) {
       const remaining = BUFF_IDS.filter(
-        (b) => !flicker.onFireBuffs.includes(b),
+        (b) => !activePlayer.onFireBuffs.includes(b),
       );
       if (remaining.length > 0) {
         const buff = remaining[Math.floor(Math.random() * remaining.length)];
-        flicker.onFireBuffs.push(buff);
+        activePlayer.onFireBuffs.push(buff);
         streakEvents.push({ type: "buff", buffId: buff });
       }
     }
 
     // Every 5 successes: cure one impairment
-    if (flicker.streak % 5 === 0 && flicker.impairments.length > 0) {
-      const idx = Math.floor(Math.random() * flicker.impairments.length);
-      const cured = flicker.impairments.splice(idx, 1)[0];
+    if (activePlayer.streak % 5 === 0 && activePlayer.impairments.length > 0) {
+      const idx = Math.floor(Math.random() * activePlayer.impairments.length);
+      const cured = activePlayer.impairments.splice(idx, 1)[0];
       streakEvents.push({ type: "cure", impairmentId: cured });
     }
 
-    // Advance flicker
-    room.flickerIndex =
-      (room.flickerIndex + 1) % room.players.length;
+    // Advance active player
+    room.activePlayerIndex =
+      (room.activePlayerIndex + 1) % room.players.length;
     room.phase = "SELECTING_CHIP";
 
     broadcastToRoom(room, {
@@ -626,9 +619,8 @@ function handleFlickResult(ws, clientId, msg) {
       success: true,
       chipIndex: msg.chipIndex,
       finalPositions: msg.finalPositions,
-      flickerIndex: prevFlickerIndex,
-      nextFlickerIndex: room.flickerIndex,
-      tosserIndex: room.tosserIndex,
+      activePlayerIndex: prevActivePlayerIndex,
+      nextActivePlayerIndex: room.activePlayerIndex,
       chipStates: room.chipStates,
       streakEvents,
       consumedBuffs: buffsUsedThisFlick,
@@ -637,30 +629,28 @@ function handleFlickResult(ws, clientId, msg) {
     sendPrivatePlayerState(room);
   } else {
     // --- FAILURE ---
-    flicker.failures++;
-    flicker.streak = 0;
+    activePlayer.failures++;
+    activePlayer.streak = 0;
 
     // Consume buffs
-    flicker.onFireBuffs = [];
+    activePlayer.onFireBuffs = [];
 
     let impairmentEvent = null;
     // Assign impairment every 5 failures
-    if (flicker.failures % 5 === 0) {
+    if (activePlayer.failures % 5 === 0) {
       const remaining = IMPAIRMENT_IDS.filter(
-        (i) => !flicker.impairments.includes(i),
+        (i) => !activePlayer.impairments.includes(i),
       );
       if (remaining.length > 0) {
         const imp =
           remaining[Math.floor(Math.random() * remaining.length)];
-        flicker.impairments.push(imp);
+        activePlayer.impairments.push(imp);
         impairmentEvent = { impairmentId: imp };
       }
     }
 
-    // Tosser becomes the failed flicker, next player flicks
-    room.tosserIndex = room.flickerIndex;
-    room.flickerIndex =
-      (room.tosserIndex + 1) % room.players.length;
+    // Active player stays on the failed player — they toss next.
+    // The advance to the next flicker happens after the toss completes.
     room.phase = "EVALUATING";
 
     broadcastToRoom(room, {
@@ -669,9 +659,8 @@ function handleFlickResult(ws, clientId, msg) {
       reason: msg.reason,
       chipIndex: msg.chipIndex,
       finalPositions: msg.finalPositions,
-      flickerIndex: prevFlickerIndex,
-      nextFlickerIndex: room.flickerIndex,
-      tosserIndex: room.tosserIndex,
+      activePlayerIndex: prevActivePlayerIndex,
+      nextActivePlayerIndex: room.activePlayerIndex,
       impairmentEvent,
     });
 
@@ -685,8 +674,7 @@ function handleFlickResult(ws, clientId, msg) {
       room.phase = "TOSSING";
       broadcastToRoom(room, {
         type: "request_toss",
-        tosserIndex: room.tosserIndex,
-        flickerIndex: room.flickerIndex,
+        activePlayerIndex: room.activePlayerIndex,
       });
     }, FAILURE_TOSS_DELAY);
   }
@@ -759,19 +747,18 @@ function handleDisconnect(ws, clientId) {
     });
 
     // If disconnected player was the active player, auto-advance after 3s
-    const isActiveTosser =
-      room.tosserIndex === playerIndex &&
-      ["TOSSING", "TOSS_ANIMATING"].includes(room.phase);
-    const isActiveFlicker =
-      room.flickerIndex === playerIndex &&
+    const isActivePlayer =
+      room.activePlayerIndex === playerIndex &&
       [
+        "TOSSING",
+        "TOSS_ANIMATING",
         "SELECTING_CHIP",
         "FLICK_ANGLE",
         "FLICK_POWER",
         "FLICK_ANIMATING",
       ].includes(room.phase);
 
-    if (isActiveTosser || isActiveFlicker) {
+    if (isActivePlayer) {
       const roomCode = room.code;
       setTimeout(() => {
         if (!rooms.has(roomCode)) return;
@@ -803,8 +790,7 @@ function autoAdvanceTurn(room, disconnectedIndex) {
   room.players[disconnectedIndex].failures++;
   room.players[disconnectedIndex].streak = 0;
 
-  room.tosserIndex = next;
-  room.flickerIndex = (next + 1) % room.players.length;
+  room.activePlayerIndex = next;
   room.phase = "TOSSING";
 
   sendPrivatePlayerState(room);
@@ -817,7 +803,6 @@ function autoAdvanceTurn(room, disconnectedIndex) {
 
   broadcastToRoom(room, {
     type: "request_toss",
-    tosserIndex: room.tosserIndex,
-    flickerIndex: room.flickerIndex,
+    activePlayerIndex: room.activePlayerIndex,
   });
 }

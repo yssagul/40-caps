@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { CONFIG, IMPAIRMENTS, BUFFS } from './config.js';
-import { State, setMessage, currentTosserName, startAngleSelection, executeFlick, performToss, applyChipStates, getImpairmentById, getBuffById } from './state.js';
+import { State, setMessage, currentActivePlayerName, startAngleSelection, executeFlick, performToss, applyChipStates, getImpairmentById, getBuffById } from './state.js';
 import * as net from './net.js';
 import * as physics from './physics.js';
 
@@ -18,16 +18,16 @@ export function setupNetworkHandlers(ui, helpers) {
           closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn } = ui;
   const { showView, applyConfig, renderScoreboard, startGameOnline } = helpers;
 
-  function buildStreakMessage(flickerName, streakEvents) {
+  function buildStreakMessage(activePlayerName, streakEvents) {
     if (!streakEvents) return "";
     let msg = "";
     for (const evt of streakEvents) {
       if (evt.type === "buff") {
         const buff = getBuffById(evt.buffId);
-        msg += ` ${flickerName} is On Fire! Buff: ${buff ? buff.name : evt.buffId}`;
+        msg += ` ${activePlayerName} is On Fire! Buff: ${buff ? buff.name : evt.buffId}`;
       } else if (evt.type === "cure") {
         const imp = getImpairmentById(evt.impairmentId);
-        msg += ` ${flickerName} cured: ${imp ? imp.name : evt.impairmentId}!`;
+        msg += ` ${activePlayerName} cured: ${imp ? imp.name : evt.impairmentId}!`;
       }
     }
     return msg;
@@ -74,18 +74,17 @@ export function setupNetworkHandlers(ui, helpers) {
   // --- Game started ---
 
   net.on("game_started", (msg) => {
-    startGameOnline(msg.players, msg.config, msg.tosserIndex, msg.flickerIndex);
+    startGameOnline(msg.players, msg.config, msg.activePlayerIndex);
   });
 
   // --- Toss ---
 
   net.on("request_toss", (msg) => {
-    State.tosserIndex = msg.tosserIndex;
-    State.flickerIndex = msg.flickerIndex;
+    State.activePlayerIndex = msg.activePlayerIndex;
     State.phase = "TOSSING";
 
-    // If I am the tosser, generate positions and send
-    if (net.amITosser(msg.tosserIndex)) {
+    // If I am the active player, generate toss positions and send
+    if (net.isMyTurn(State.activePlayerIndex)) {
       performToss();
     }
     // Otherwise, wait for toss_broadcast
@@ -101,8 +100,7 @@ export function setupNetworkHandlers(ui, helpers) {
     physics.removeChips(State.chips);
     State.chips = [];
 
-    State.tosserIndex = msg.tosserIndex;
-    State.flickerIndex = msg.flickerIndex;
+    State.activePlayerIndex = msg.activePlayerIndex;
 
     const positions = msg.positions;
     State.tossTargetPositions = positions.map((p) => ({
@@ -122,7 +120,7 @@ export function setupNetworkHandlers(ui, helpers) {
 
     State.tossAnimStart = performance.now();
     State.phase = "TOSS_ANIMATING";
-    setMessage(`${currentTosserName()} tosses the chips!`);
+    setMessage(`${currentActivePlayerName()} tosses the chips!`);
   });
 
   // --- Chip Selected ---
@@ -154,7 +152,7 @@ export function setupNetworkHandlers(ui, helpers) {
     State.flickAngle = msg.angle;
     State.flickPower = msg.power;
 
-    if (net.isMyTurn(State.flickerIndex)) {
+    if (net.isMyTurn(State.activePlayerIndex)) {
       // Active client: run physics locally + stream
       executeFlick();
     } else {
@@ -197,14 +195,13 @@ export function setupNetworkHandlers(ui, helpers) {
 
     physics.removeGateSensor();
 
-    const flickerName = State.players[msg.flickerIndex]?.name || "Player";
+    const activePlayerName = State.players[msg.activePlayerIndex]?.name || "Player";
 
     if (msg.success) {
       applyChipStates(msg.chipStates);
       State.selectedChipIndex = -1;
-      setMessage("Success!" + buildStreakMessage(flickerName, msg.streakEvents));
-      State.flickerIndex = msg.nextFlickerIndex;
-      State.tosserIndex = msg.tosserIndex;
+      setMessage("Success!" + buildStreakMessage(activePlayerName, msg.streakEvents));
+      State.activePlayerIndex = msg.nextActivePlayerIndex;
       State.phase = "SELECTING_CHIP";
     } else {
       let impMsg = "";
@@ -212,10 +209,9 @@ export function setupNetworkHandlers(ui, helpers) {
         const imp = getImpairmentById(msg.impairmentEvent.impairmentId);
         impMsg = ` Gains: ${imp ? imp.name : msg.impairmentEvent.impairmentId}!`;
       }
-      setMessage(`${flickerName} fails! ${msg.reason || ""}${impMsg}`);
+      setMessage(`${activePlayerName} fails! ${msg.reason || ""}${impMsg}`);
       State.selectedChipIndex = -1;
-      State.tosserIndex = msg.tosserIndex;
-      State.flickerIndex = msg.nextFlickerIndex;
+      State.activePlayerIndex = msg.nextActivePlayerIndex;
       State.phase = "EVALUATING";
     }
   });
@@ -299,8 +295,7 @@ export function setupNetworkHandlers(ui, helpers) {
 
       State.isOnline = true;
       State.myPlayerIndex = msg.playerIndex;
-      State.tosserIndex = msg.tosserIndex;
-      State.flickerIndex = msg.flickerIndex;
+      State.activePlayerIndex = msg.activePlayerIndex;
 
       // Recreate world
       State.chips = [];

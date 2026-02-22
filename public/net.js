@@ -283,12 +283,8 @@ export function stopPhysicsStreaming() {
 // QUERY HELPERS
 // ============================================================================
 
-export function isMyTurn(flickerIndex) {
-  return NET.playerIndex === flickerIndex;
-}
-
-export function amITosser(tosserIndex) {
-  return NET.playerIndex === tosserIndex;
+export function isMyTurn(activePlayerIndex) {
+  return NET.playerIndex === activePlayerIndex;
 }
 
 export function getMyIndex() {

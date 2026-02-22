@@ -13,8 +13,7 @@ import * as net from './net.js';
 export const State = {
   phase: "SETUP",
   players: [],
-  tosserIndex: 0,
-  flickerIndex: 0,
+  activePlayerIndex: 0,
   chips: [], // [{body, collider, topUp, flicked, eligible}]
   selectedChipIndex: -1,
   centerAngle: 0,
@@ -69,29 +68,29 @@ export function getBuffById(id) {
   return BUFFS.find((b) => b.id === id);
 }
 
-export function getFlicker() {
-  if (State.flickerIndex < 0 || State.flickerIndex >= State.players.length) return null;
-  return State.players[State.flickerIndex];
+export function getActivePlayer() {
+  if (State.activePlayerIndex < 0 || State.activePlayerIndex >= State.players.length) return null;
+  return State.players[State.activePlayerIndex];
 }
 
-export function flickerHas(id) {
-  const p = getFlicker();
+export function activePlayerHas(id) {
+  const p = getActivePlayer();
   if (!p) return false;
   return p.impairments.includes(id) || p.onFireBuffs.includes(id);
 }
 
-export function flickerHasImpairment(id) {
-  const p = getFlicker();
+export function activePlayerHasImpairment(id) {
+  const p = getActivePlayer();
   return p ? p.impairments.includes(id) : false;
 }
 
-export function flickerHasBuff(id) {
-  const p = getFlicker();
+export function activePlayerHasBuff(id) {
+  const p = getActivePlayer();
   return p ? p.onFireBuffs.includes(id) : false;
 }
 
-export function flickerImpairmentCount(id) {
-  const p = getFlicker();
+export function activePlayerImpairmentCount(id) {
+  const p = getActivePlayer();
   return p ? p.impairments.filter((i) => i === id).length : 0;
 }
 
@@ -126,7 +125,7 @@ export function consumeBuffs(player) {
 
 export function getEffectiveAngleRange() {
   let range = CONFIG.FLICK_ANGLE_RANGE;
-  if (flickerHasBuff("skilled_shooter")) {
+  if (activePlayerHasBuff("skilled_shooter")) {
     range = 10;
   }
   return range;
@@ -134,7 +133,7 @@ export function getEffectiveAngleRange() {
 
 export function getEffectiveAngleSpeed() {
   let speed = CONFIG.FLICK_ANGLE_SPEED;
-  if (flickerHasBuff("focus")) {
+  if (activePlayerHasBuff("focus")) {
     speed *= 0.5;
   }
   return speed;
@@ -142,7 +141,7 @@ export function getEffectiveAngleSpeed() {
 
 export function getEffectivePowerSpeed() {
   let speed = CONFIG.FLICK_POWER_SPEED;
-  if (flickerHasBuff("focus")) {
+  if (activePlayerHasBuff("focus")) {
     speed *= 0.5;
   }
   return speed;
@@ -150,7 +149,7 @@ export function getEffectivePowerSpeed() {
 
 // Update daze blink state
 export function updateDazeBlink(now) {
-  if (!flickerHasImpairment("daze")) {
+  if (!activePlayerHasImpairment("daze")) {
     State.dazeBlinkOn = true;
     return;
   }
@@ -162,9 +161,9 @@ export function updateDazeBlink(now) {
 }
 
 export function shouldDazeHide() {
-  // In online mode, spectators (not the flicker) never see daze effect
-  if (State.isOnline && State.myPlayerIndex !== State.flickerIndex) return false;
-  return flickerHasImpairment("daze") && !State.dazeBlinkOn;
+  // In online mode, spectators (not the active player) never see daze effect
+  if (State.isOnline && State.myPlayerIndex !== State.activePlayerIndex) return false;
+  return activePlayerHasImpairment("daze") && !State.dazeBlinkOn;
 }
 
 export function setMessage(msg) {
@@ -172,12 +171,8 @@ export function setMessage(msg) {
   State.messageTimer = performance.now();
 }
 
-export function currentTosserName() {
-  return State.players[State.tosserIndex]?.name || "Player";
-}
-
-export function currentFlickerName() {
-  return State.players[State.flickerIndex]?.name || "Player";
+export function currentActivePlayerName() {
+  return State.players[State.activePlayerIndex]?.name || "Player";
 }
 
 // ============================================================================
@@ -262,9 +257,9 @@ export function performToss() {
   physics.removeChips(State.chips);
   State.chips = [];
 
-  // In online mode, the tosser generates and sends; others wait for broadcast
+  // In online mode, the active player generates and sends; others wait for broadcast
   if (State.isOnline) {
-    if (net.amITosser(State.tosserIndex)) {
+    if (net.isMyTurn(State.activePlayerIndex)) {
       const positions = generateTossPositions();
       const orientations = rollOrientations();
       const tossPositions = positions.map((p, i) => ({
@@ -300,7 +295,7 @@ export function performToss() {
 
   State.tossAnimStart = performance.now();
   State.phase = "TOSS_ANIMATING";
-  setMessage(`${currentTosserName()} tosses the chips!`);
+  setMessage(`${currentActivePlayerName()} tosses the chips!`);
 }
 
 // ============================================================================
@@ -352,7 +347,7 @@ export function executeFlick() {
   let power = State.flickPower;
 
   // Wild Shooter impairment: perturb angle ±5%, power ±10% per stack
-  const wildCount = flickerImpairmentCount("wild_shooter");
+  const wildCount = activePlayerImpairmentCount("wild_shooter");
   for (let i = 0; i < wildCount; i++) {
     angle += angle * (Math.random() * 0.1 - 0.05);
     power += power * (Math.random() * 0.2 - 0.1);
@@ -360,7 +355,7 @@ export function executeFlick() {
 
   // Jump Shot buff: disable collision between flicked chip and gate chips
   // We set different collision groups so flicked chip ignores other chips but still hits walls
-  if (flickerHasBuff("jump_shot")) {
+  if (activePlayerHasBuff("jump_shot")) {
     // Group 1, filter to only collide with group 0 (walls)
     // Membership bits = 0x0002, Filter bits = 0x0001
     chip.collider.setCollisionGroups(CONFIG.COLLISION_GROUP_JUMP_SHOT);
@@ -388,8 +383,8 @@ export function executeFlick() {
   State.flickStartTime = performance.now();
   State.phase = "FLICK_ANIMATING";
 
-  // In online mode, if I am the flicker, start streaming physics frames
-  if (State.isOnline && net.isMyTurn(State.flickerIndex)) {
+  // In online mode, if I am the active player, start streaming physics frames
+  if (State.isOnline && net.isMyTurn(State.activePlayerIndex)) {
     net.startPhysicsStreaming(() => {
       if (State.phase !== "FLICK_ANIMATING") return null;
       return State.chips.map((c) => {
@@ -405,8 +400,8 @@ export function executeFlick() {
 // ============================================================================
 
 function getFlickFailureReason() {
-  const ignoreTouch = flickerHasBuff("jump_shot");
-  const ignoreWall = flickerHasBuff("hand_of_god");
+  const ignoreTouch = activePlayerHasBuff("jump_shot");
+  const ignoreWall = activePlayerHasBuff("hand_of_god");
 
   if (State.touchedGateChip && !ignoreTouch) return "Touched a gate chip!";
   if (State.hitWall && !ignoreWall) return "Chip hit the wall!";
@@ -420,7 +415,7 @@ export function evaluateFlick() {
   const reason = getFlickFailureReason();
   const success = reason === "";
 
-  if (State.isOnline && net.isMyTurn(State.flickerIndex)) {
+  if (State.isOnline && net.isMyTurn(State.activePlayerIndex)) {
     net.stopPhysicsStreaming();
     const finalPositions = State.chips.map((c) => {
       const p = c.body.translation();
@@ -440,7 +435,7 @@ export function evaluateFlick() {
 // ============================================================================
 
 export function onFlickSuccess() {
-  const player = getFlicker();
+  const player = getActivePlayer();
   if (!player) return;
 
   // Consume On Fire buffs after this flick
@@ -486,12 +481,12 @@ export function onFlickSuccess() {
   setMessage("Success!" + streakMsg);
 
   // Next player flicks (chips remain where they are)
-  State.flickerIndex = (State.flickerIndex + 1) % State.players.length;
+  State.activePlayerIndex = (State.activePlayerIndex + 1) % State.players.length;
   State.phase = "SELECTING_CHIP";
 }
 
 export function onFlickFailure(reason) {
-  const player = getFlicker();
+  const player = getActivePlayer();
   if (!player) return;
 
   // Consume On Fire buffs after this flick
@@ -513,11 +508,8 @@ export function onFlickFailure(reason) {
     }
   }
 
-  setMessage(`${currentFlickerName()} fails! ${reason}${impMsg}`);
+  setMessage(`${currentActivePlayerName()} fails! ${reason}${impMsg}`);
   State.selectedChipIndex = -1;
-
-  // Failing player becomes tosser, next player flicks first
-  State.tosserIndex = State.flickerIndex;
 
   // In online mode, skip the setTimeout — the server handles the 1800ms delay
   if (State.isOnline) {
@@ -525,9 +517,10 @@ export function onFlickFailure(reason) {
     return;
   }
 
+  // Active player stays on the failed player — they toss next.
+  // The advance to the next flicker happens after the toss animation completes.
   setTimeout(() => {
     if (State.phase !== "EVALUATING") return;
-    State.flickerIndex = (State.tosserIndex + 1) % State.players.length;
     performToss();
   }, CONFIG.FAILURE_TOSS_DELAY);
   State.phase = "EVALUATING";
