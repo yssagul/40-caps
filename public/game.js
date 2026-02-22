@@ -2,9 +2,10 @@
 // 40 CAPS — A chip-flicking browser game
 // ============================================================================
 
-import { CONFIG, IMPAIRMENTS, BUFFS } from './config.js';
+import { CONFIG } from './config.js';
 import * as physics from './physics.js';
-import { State, getFlicker, flickerHas, flickerHasImpairment, flickerHasBuff, flickerImpairmentCount, assignRandomImpairment, assignRandomBuff, removeRandomImpairment, consumeBuffs, getEffectiveAngleRange, getEffectiveAngleSpeed, getEffectivePowerSpeed, updateDazeBlink, shouldDazeHide, setMessage, currentTosserName, currentFlickerName, generateTossPositions, rollOrientations, performToss, computeCenterAngle, getGateChips, startAngleSelection, lockAngle, lockPowerAndFlick, executeFlick, evaluateFlick, onFlickSuccess, onFlickFailure, createPlayer, getImpairmentById, getBuffById } from './state.js';
+import * as state from './state.js';
+const { State } = state; // convenience alias — used ~100 times below
 import * as net from './net.js';
 import { setupNetworkHandlers } from './handlers.js';
 
@@ -75,7 +76,7 @@ canvas.addEventListener("click", (e) => {
           net.sendChipSelected(idx);
         } else {
           State.selectedChipIndex = idx;
-          startAngleSelection();
+          state.startAngleSelection();
         }
       }
       break;
@@ -85,7 +86,7 @@ canvas.addEventListener("click", (e) => {
         // Send locked angle to server; wait for broadcast
         net.sendAngleLocked(State.currentAngle, State.centerAngle);
       } else {
-        lockAngle();
+        state.lockAngle();
       }
       break;
     }
@@ -94,7 +95,7 @@ canvas.addEventListener("click", (e) => {
         // Send power lock to server; wait for broadcast
         net.sendPowerLocked(State.selectedChipIndex, State.flickAngle, State.currentPower);
       } else {
-        lockPowerAndFlick();
+        state.lockPowerAndFlick();
       }
       break;
     }
@@ -213,7 +214,7 @@ function drawGateLine() {
   if (State.selectedChipIndex < 0) return;
   if (!CONFIG.PHASES_FLICKING.includes(State.phase)) return;
 
-  const gate = getGateChips();
+  const gate = state.getGateChips();
   if (gate.length < 2) return;
 
   const pA = gate[0].body.translation();
@@ -382,19 +383,9 @@ function drawBadgeTooltip() {
   const { hit, nameFont, descFont, descLines, padX, padY, lineH, gapAfterName, tipW, tipH, tx, ty } = cachedTooltipHit;
 
   // Rounded rect background
-  const r = CONFIG.TOOLTIP_RADIUS;
   ctx.fillStyle = "rgba(10, 10, 30, 0.92)";
   ctx.beginPath();
-  ctx.moveTo(tx + r, ty);
-  ctx.lineTo(tx + tipW - r, ty);
-  ctx.arcTo(tx + tipW, ty, tx + tipW, ty + r, r);
-  ctx.lineTo(tx + tipW, ty + tipH - r);
-  ctx.arcTo(tx + tipW, ty + tipH, tx + tipW - r, ty + tipH, r);
-  ctx.lineTo(tx + r, ty + tipH);
-  ctx.arcTo(tx, ty + tipH, tx, ty + tipH - r, r);
-  ctx.lineTo(tx, ty + r);
-  ctx.arcTo(tx, ty, tx + r, ty, r);
-  ctx.closePath();
+  ctx.roundRect(tx, ty, tipW, tipH, CONFIG.TOOLTIP_RADIUS);
   ctx.fill();
 
   // Border
@@ -420,13 +411,13 @@ function drawBadgeTooltip() {
 
 function drawBadgesForPlayer(bx, by, player) {
   for (const impId of (player.impairments || [])) {
-    const imp = getImpairmentById(impId);
+    const imp = state.getImpairmentById(impId);
     if (imp) {
       bx += drawImpairmentBadge(bx, by, imp.abbr, "#8b2020", imp.name, imp.desc, "impairment");
     }
   }
   for (const buffId of (player.onFireBuffs || [])) {
-    const buff = getBuffById(buffId);
+    const buff = state.getBuffById(buffId);
     if (buff) {
       bx += drawImpairmentBadge(bx, by, buff.abbr, "#b8860b", buff.name, buff.desc, "buff");
     }
@@ -475,16 +466,16 @@ function drawInstructions() {
   let instruction = "";
   switch (State.phase) {
     case "TOSS_ANIMATING":
-      instruction = `${currentTosserName()} tosses...`;
+      instruction = `${state.currentTosserName()} tosses...`;
       break;
     case "SELECTING_CHIP":
-      instruction = `${currentFlickerName()}: Click a chip to flick`;
+      instruction = `${state.currentFlickerName()}: Click a chip to flick`;
       break;
     case "FLICK_ANGLE":
-      instruction = `${currentFlickerName()}: Click to set angle`;
+      instruction = `${state.currentFlickerName()}: Click to set angle`;
       break;
     case "FLICK_POWER":
-      instruction = `${currentFlickerName()}: Click to set power`;
+      instruction = `${state.currentFlickerName()}: Click to set power`;
       break;
     case "FLICK_ANIMATING":
       instruction = "Flicking...";
@@ -521,14 +512,14 @@ function drawHUD() {
 function getArrowAngleForDisplay() {
   // False Confidence: display uses narrow ±10° range, but actual is full ±20°
   if (
-    flickerHasImpairment("false_confidence") &&
+    state.flickerHasImpairment("false_confidence") &&
     State.phase === "FLICK_ANGLE"
   ) {
     const narrowRad = (10 * Math.PI) / 180;
     return State.centerAngle + (State.oscillator * 2 - 1) * narrowRad;
   }
   // Skilled Shooter buff: display AND actual use effective range
-  if (flickerHasBuff("skilled_shooter") && State.phase === "FLICK_ANGLE") {
+  if (state.flickerHasBuff("skilled_shooter") && State.phase === "FLICK_ANGLE") {
     const effRad = (State.effectiveAngleRange * Math.PI) / 180;
     return State.centerAngle + (State.oscillator * 2 - 1) * effRad;
   }
@@ -536,7 +527,7 @@ function getArrowAngleForDisplay() {
 }
 
 function getArrowLengthMultiplier() {
-  return flickerHasBuff("long_shot") ? 2.0 : 1.0;
+  return state.flickerHasBuff("long_shot") ? 2.0 : 1.0;
 }
 
 function drawFlickArrow() {
@@ -565,7 +556,7 @@ function drawNormalScene(offsetX, offsetY, alpha) {
   drawGateLine();
 
   // Arrow + power bar (respect daze blink)
-  if (!shouldDazeHide()) {
+  if (!state.shouldDazeHide()) {
     drawFlickArrow();
     drawPowerBar();
   }
@@ -577,7 +568,7 @@ function drawNormalScene(offsetX, offsetY, alpha) {
 function drawDoubleVision(isMyFlick) {
   if (
     isMyFlick &&
-    flickerHasImpairment("double_vision") &&
+    state.flickerHasImpairment("double_vision") &&
     CONFIG.PHASES_DOUBLE_VISION.includes(State.phase)
   ) {
     drawNormalScene(State.doubleVisionOffset.x, State.doubleVisionOffset.y, 0.35);
@@ -587,7 +578,7 @@ function drawDoubleVision(isMyFlick) {
 function drawBlackoutOverlay(isMyFlick) {
   if (
     isMyFlick &&
-    flickerHasImpairment("blackout") &&
+    state.flickerHasImpairment("blackout") &&
     CONFIG.PHASES_BLACKOUT.includes(State.phase)
   ) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
@@ -631,10 +622,10 @@ function calculatePowerRatio() {
 
 function updateOscillators(dt) {
   if (State.phase === "FLICK_ANGLE") {
-    bounceOscillator(dt, getEffectiveAngleSpeed());
+    bounceOscillator(dt, state.getEffectiveAngleSpeed());
 
     // Skilled Shooter narrows ACTUAL range; False Confidence does NOT
-    const actualRange = flickerHasBuff("skilled_shooter")
+    const actualRange = state.flickerHasBuff("skilled_shooter")
       ? 10
       : CONFIG.FLICK_ANGLE_RANGE;
     const rangeRad = (actualRange * Math.PI) / 180;
@@ -642,11 +633,11 @@ function updateOscillators(dt) {
       State.centerAngle + (State.oscillator * 2 - 1) * rangeRad;
 
     // Store effective display range for rendering
-    State.effectiveAngleRange = getEffectiveAngleRange();
+    State.effectiveAngleRange = state.getEffectiveAngleRange();
   }
 
   if (State.phase === "FLICK_POWER") {
-    bounceOscillator(dt, getEffectivePowerSpeed());
+    bounceOscillator(dt, state.getEffectivePowerSpeed());
     State.currentPower =
       CONFIG.FLICK_POWER_MIN +
       State.oscillator * (CONFIG.FLICK_POWER_MAX - CONFIG.FLICK_POWER_MIN);
@@ -684,7 +675,7 @@ function updateTossAnimation(now) {
     }
 
     State.phase = "SELECTING_CHIP";
-    setMessage(`${currentFlickerName()}: Pick a chip to flick!`);
+    state.setMessage(`${state.currentFlickerName()}: Pick a chip to flick!`);
   }
 }
 
@@ -709,17 +700,17 @@ function updateFlickAnimation() {
   }
 
   // Active flicker (or local play): run physics + gate detection + evaluation
-  physics.checkGateCrossing(State, getGateChips);
-  physics.processCollisionEvents(State, getGateChips);
+  physics.checkGateCrossing(State, state.getGateChips);
+  physics.processCollisionEvents(State, state.getGateChips);
 
   if (physics.allChipsStopped(State)) {
-    evaluateFlick();
+    state.evaluateFlick();
   }
 }
 
 function update(now, dt) {
   updateTossAnimation(now);
-  updateDazeBlink(now);
+  state.updateDazeBlink(now);
   updateOscillators(dt);
 
   // Step the physics world with event queue for collision detection
@@ -941,7 +932,7 @@ startBtn.addEventListener("click", () => {
   const nameInputs = playerNamesContainer.querySelectorAll("input");
   const players = [];
   nameInputs.forEach((input, i) => {
-    players.push(createPlayer(input.value.trim() || `Player ${i + 1}`));
+    players.push(state.createPlayer(input.value.trim() || `Player ${i + 1}`));
   });
 
   applyConfig(readAdvancedSettings(""));
@@ -1052,7 +1043,7 @@ function startGame(players) {
   physics.createWorld();
   physics.createWalls();
 
-  performToss();
+  state.performToss();
 }
 
 // ============================================================================
@@ -1071,7 +1062,7 @@ function startGameOnline(players, config, tosserIndex, flickerIndex) {
   // Apply server config
   if (config) applyConfig(config);
 
-  State.players = players.map((p) => createPlayer(p.name));
+  State.players = players.map((p) => state.createPlayer(p.name));
 
   State.tosserIndex = tosserIndex;
   State.flickerIndex = flickerIndex;
