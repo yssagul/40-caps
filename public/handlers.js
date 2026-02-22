@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { CONFIG, IMPAIRMENTS, BUFFS } from './config.js';
-import { State, setMessage, currentTosserName, startAngleSelection, executeFlick, performToss } from './state.js';
+import { State, setMessage, currentTosserName, startAngleSelection, executeFlick, performToss, applyChipStates, getImpairmentById, getBuffById } from './state.js';
 import * as net from './net.js';
 import * as physics from './physics.js';
 
@@ -18,24 +18,39 @@ export function setupNetworkHandlers(ui, helpers) {
           closeRoomBtn, onlineError, setupOverlay, endOverlay, endGameBtn } = ui;
   const { showView, applyConfig, renderScoreboard, startGameOnline } = helpers;
 
+  function buildStreakMessage(flickerName, streakEvents) {
+    if (!streakEvents) return "";
+    let msg = "";
+    for (const evt of streakEvents) {
+      if (evt.type === "buff") {
+        const buff = getBuffById(evt.buffId);
+        msg += ` ${flickerName} is On Fire! Buff: ${buff ? buff.name : evt.buffId}`;
+      } else if (evt.type === "cure") {
+        const imp = getImpairmentById(evt.impairmentId);
+        msg += ` ${flickerName} cured: ${imp ? imp.name : evt.impairmentId}!`;
+      }
+    }
+    return msg;
+  }
+
+  function setLobbyButtons(isHost) {
+    lobbyStartBtn.style.display = isHost ? "" : "none";
+    closeRoomBtn.style.display = isHost ? "" : "none";
+    leaveRoomBtn.style.display = isHost ? "none" : "";
+  }
+
   // --- Lobby events ---
 
   net.on("room_created", (msg) => {
     showView("waitingRoom");
     roomCodeBig.textContent = msg.code;
-    lobbyStartBtn.style.display = "";
-    // Host sees Close Room, not Leave Room
-    closeRoomBtn.style.display = "";
-    leaveRoomBtn.style.display = "none";
+    setLobbyButtons(true);
   });
 
   net.on("room_joined", (msg) => {
     showView("waitingRoom");
     roomCodeBig.textContent = msg.code;
-    lobbyStartBtn.style.display = "none";
-    // Guest sees Leave Room, not Close Room
-    leaveRoomBtn.style.display = "";
-    closeRoomBtn.style.display = "none";
+    setLobbyButtons(false);
   });
 
   net.on("lobby_update", (msg) => {
@@ -177,57 +192,31 @@ export function setupNetworkHandlers(ui, helpers) {
 
     // Restore collision groups on the flicked chip
     if (msg.chipIndex >= 0 && msg.chipIndex < State.chips.length) {
-      State.chips[msg.chipIndex].collider.setCollisionGroups(0x0002ffff);
+      State.chips[msg.chipIndex].collider.setCollisionGroups(CONFIG.COLLISION_GROUP_CHIPS);
     }
 
     physics.removeGateSensor();
 
+    const flickerName = State.players[msg.flickerIndex]?.name || "Player";
+
     if (msg.success) {
-      // Update chip states from server
-      if (msg.chipStates) {
-        for (let i = 0; i < State.chips.length && i < msg.chipStates.length; i++) {
-          State.chips[i].flicked = msg.chipStates[i].flicked;
-          State.chips[i].eligible = msg.chipStates[i].eligible;
-        }
-      }
-
+      applyChipStates(msg.chipStates);
       State.selectedChipIndex = -1;
-
-      // Build message
-      let flickerName = State.players[msg.flickerIndex]?.name || "Player";
-      let streakMsg = "";
-      if (msg.streakEvents) {
-        for (const evt of msg.streakEvents) {
-          if (evt.type === "buff") {
-            const buff = BUFFS.find((b) => b.id === evt.buffId);
-            streakMsg += ` ${flickerName} is On Fire! Buff: ${buff ? buff.name : evt.buffId}`;
-          } else if (evt.type === "cure") {
-            const imp = IMPAIRMENTS.find((i) => i.id === evt.impairmentId);
-            streakMsg += ` ${flickerName} cured: ${imp ? imp.name : evt.impairmentId}!`;
-          }
-        }
-      }
-
-      setMessage("Success!" + streakMsg);
-
+      setMessage("Success!" + buildStreakMessage(flickerName, msg.streakEvents));
       State.flickerIndex = msg.nextFlickerIndex;
       State.tosserIndex = msg.tosserIndex;
       State.phase = "SELECTING_CHIP";
     } else {
-      // Failure
-      let flickerName = State.players[msg.flickerIndex]?.name || "Player";
       let impMsg = "";
       if (msg.impairmentEvent) {
-        const imp = IMPAIRMENTS.find((i) => i.id === msg.impairmentEvent.impairmentId);
+        const imp = getImpairmentById(msg.impairmentEvent.impairmentId);
         impMsg = ` Gains: ${imp ? imp.name : msg.impairmentEvent.impairmentId}!`;
       }
-
       setMessage(`${flickerName} fails! ${msg.reason || ""}${impMsg}`);
       State.selectedChipIndex = -1;
       State.tosserIndex = msg.tosserIndex;
       State.flickerIndex = msg.nextFlickerIndex;
       State.phase = "EVALUATING";
-      // Server handles the 1800ms delay and sends request_toss
     }
   });
 
@@ -329,12 +318,7 @@ export function setupNetworkHandlers(ui, helpers) {
       }
 
       // Apply chip states
-      if (msg.chipStates) {
-        for (let i = 0; i < State.chips.length && i < msg.chipStates.length; i++) {
-          State.chips[i].flicked = msg.chipStates[i].flicked;
-          State.chips[i].eligible = msg.chipStates[i].eligible;
-        }
-      }
+      applyChipStates(msg.chipStates);
 
       setupOverlay.style.display = "none";
       endOverlay.classList.remove("visible");
@@ -346,10 +330,7 @@ export function setupNetworkHandlers(ui, helpers) {
       // Back in lobby
       showView("waitingRoom");
       roomCodeBig.textContent = msg.code;
-      const amHost = net.getIsHost();
-      lobbyStartBtn.style.display = amHost ? "" : "none";
-      closeRoomBtn.style.display = amHost ? "" : "none";
-      leaveRoomBtn.style.display = amHost ? "none" : "";
+      setLobbyButtons(net.getIsHost());
     }
   });
 }

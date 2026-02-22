@@ -4,7 +4,7 @@
 
 import { CONFIG, IMPAIRMENTS, BUFFS } from './config.js';
 import * as physics from './physics.js';
-import { State, getFlicker, flickerHas, flickerHasImpairment, flickerHasBuff, flickerImpairmentCount, assignRandomImpairment, assignRandomBuff, removeRandomImpairment, consumeBuffs, getEffectiveAngleRange, getEffectiveAngleSpeed, getEffectivePowerSpeed, updateDazeBlink, shouldDazeHide, setMessage, currentTosserName, currentFlickerName, generateTossPositions, rollOrientations, performToss, computeCenterAngle, getGateChips, startAngleSelection, lockAngle, lockPowerAndFlick, executeFlick, evaluateFlick, onFlickSuccess, onFlickFailure } from './state.js';
+import { State, getFlicker, flickerHas, flickerHasImpairment, flickerHasBuff, flickerImpairmentCount, assignRandomImpairment, assignRandomBuff, removeRandomImpairment, consumeBuffs, getEffectiveAngleRange, getEffectiveAngleSpeed, getEffectivePowerSpeed, updateDazeBlink, shouldDazeHide, setMessage, currentTosserName, currentFlickerName, generateTossPositions, rollOrientations, performToss, computeCenterAngle, getGateChips, startAngleSelection, lockAngle, lockPowerAndFlick, executeFlick, evaluateFlick, onFlickSuccess, onFlickFailure, createPlayer, getImpairmentById, getBuffById } from './state.js';
 import * as net from './net.js';
 import { setupNetworkHandlers } from './handlers.js';
 
@@ -62,14 +62,8 @@ canvas.addEventListener("click", (e) => {
   const tablePos = toTable(canvasPos.x, canvasPos.y);
 
   // In online mode, only allow interaction when it is my turn
-  if (State.isOnline) {
-    if (
-      State.phase === "SELECTING_CHIP" ||
-      State.phase === "FLICK_ANGLE" ||
-      State.phase === "FLICK_POWER"
-    ) {
-      if (!net.isMyTurn(State.flickerIndex)) return;
-    }
+  if (State.isOnline && CONFIG.PHASES_INTERACTIVE.includes(State.phase)) {
+    if (!net.isMyTurn(State.flickerIndex)) return;
   }
 
   switch (State.phase) {
@@ -170,7 +164,7 @@ function drawChip(chip, index) {
 
   // Shadow
   ctx.beginPath();
-  ctx.arc(cx + 2, cy + 2, r, 0, Math.PI * 2);
+  ctx.arc(cx + CONFIG.CHIP_SHADOW_OFFSET, cy + CONFIG.CHIP_SHADOW_OFFSET, r, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(0,0,0,0.25)";
   ctx.fill();
 
@@ -187,14 +181,14 @@ function drawChip(chip, index) {
 
   // Center dot (opposite color)
   ctx.beginPath();
-  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.arc(cx, cy, CONFIG.CHIP_CENTER_DOT_RADIUS, 0, Math.PI * 2);
   ctx.fillStyle = chip.topUp ? CONFIG.CHIP_BOTTOM_COLOR : CONFIG.CHIP_TOP_COLOR;
   ctx.fill();
 
   // Selection highlight
   if (index === State.selectedChipIndex) {
     ctx.beginPath();
-    ctx.arc(cx, cy, r + 6, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r + CONFIG.SELECTION_RING_PAD, 0, Math.PI * 2);
     ctx.strokeStyle = CONFIG.ARROW_COLOR;
     ctx.lineWidth = 3;
     ctx.stroke();
@@ -208,7 +202,7 @@ function drawChip(chip, index) {
   ) {
     const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / 300));
     ctx.beginPath();
-    ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r + CONFIG.ELIGIBLE_PULSE_PAD, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(255, 255, 255, ${pulse * 0.6})`;
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -217,8 +211,7 @@ function drawChip(chip, index) {
 
 function drawGateLine() {
   if (State.selectedChipIndex < 0) return;
-  if (!["FLICK_ANGLE", "FLICK_POWER", "FLICK_ANIMATING"].includes(State.phase))
-    return;
+  if (!CONFIG.PHASES_FLICKING.includes(State.phase)) return;
 
   const gate = getGateChips();
   if (gate.length < 2) return;
@@ -285,9 +278,7 @@ function drawPowerBar() {
   ctx.fillRect(barX, barY, barW, barH);
 
   // Fill
-  const ratio =
-    (State.currentPower - CONFIG.FLICK_POWER_MIN) /
-    (CONFIG.FLICK_POWER_MAX - CONFIG.FLICK_POWER_MIN);
+  const ratio = calculatePowerRatio();
   const fillH = ratio * barH;
 
   const hue = 120 - ratio * 120;
@@ -427,73 +418,49 @@ function drawBadgeTooltip() {
   }
 }
 
-function drawHUD() {
-  State.badgeRects = []; // clear each frame before redrawing badges
+function drawBadgesForPlayer(bx, by, player) {
+  for (const impId of (player.impairments || [])) {
+    const imp = getImpairmentById(impId);
+    if (imp) {
+      bx += drawImpairmentBadge(bx, by, imp.abbr, "#8b2020", imp.name, imp.desc, "impairment");
+    }
+  }
+  for (const buffId of (player.onFireBuffs || [])) {
+    const buff = getBuffById(buffId);
+    if (buff) {
+      bx += drawImpairmentBadge(bx, by, buff.abbr, "#b8860b", buff.name, buff.desc, "buff");
+    }
+  }
+  return bx;
+}
 
+function drawPlayerScores() {
   ctx.font = "14px sans-serif";
   ctx.textAlign = "left";
 
-  // Player info + scores at the top
   let x = TX;
   const y = TY - 30;
 
   for (let i = 0; i < State.players.length; i++) {
     const p = State.players[i];
     const isActive =
-      (State.phase === "SELECTING_CHIP" ||
-        State.phase === "FLICK_ANGLE" ||
-        State.phase === "FLICK_POWER") &&
-      i === State.flickerIndex;
+      CONFIG.PHASES_INTERACTIVE.includes(State.phase) && i === State.flickerIndex;
     const isTosser =
       (State.phase === "TOSSING" || State.phase === "TOSS_ANIMATING") &&
       i === State.tosserIndex;
 
-    ctx.fillStyle =
-      isActive || isTosser
-        ? CONFIG.PLAYER_COLORS[i % CONFIG.PLAYER_COLORS.length]
-        : "#777";
-    ctx.font =
-      isActive || isTosser ? "bold 14px sans-serif" : "14px sans-serif";
+    const highlighted = isActive || isTosser;
+    ctx.fillStyle = highlighted
+      ? CONFIG.PLAYER_COLORS[i % CONFIG.PLAYER_COLORS.length]
+      : "#777";
+    ctx.font = highlighted ? "bold 14px sans-serif" : "14px sans-serif";
 
     const text = `${p.name}: ${p.failures}`;
     ctx.fillText(text, x, y);
 
-    // Draw impairment/buff badges below name
-    let bx = x;
     const by = y + 14;
+    let bx = drawBadgesForPlayer(x, by, p);
 
-    // Draw badges for all players (impairments + buffs are visible to everyone;
-    // impairment *effects* only apply to the owning player's UI/turn)
-    for (const impId of (p.impairments || [])) {
-      const imp = IMPAIRMENTS.find((imp) => imp.id === impId);
-      if (imp) {
-        bx += drawImpairmentBadge(
-          bx,
-          by,
-          imp.abbr,
-          "#8b2020",
-          imp.name,
-          imp.desc,
-          "impairment",
-        );
-      }
-    }
-    for (const buffId of (p.onFireBuffs || [])) {
-      const buff = BUFFS.find((b) => b.id === buffId);
-      if (buff) {
-        bx += drawImpairmentBadge(
-          bx,
-          by,
-          buff.abbr,
-          "#b8860b",
-          buff.name,
-          buff.desc,
-          "buff",
-        );
-      }
-    }
-
-    // Show streak if > 0
     if (p.streak > 0) {
       ctx.font = "10px sans-serif";
       ctx.fillStyle = "#ffb703";
@@ -502,8 +469,9 @@ function drawHUD() {
 
     x += ctx.measureText(text).width + 24;
   }
+}
 
-  // Phase / instruction text at the bottom
+function drawInstructions() {
   let instruction = "";
   switch (State.phase) {
     case "TOSS_ANIMATING":
@@ -530,24 +498,24 @@ function drawHUD() {
     ctx.fillStyle = "#ddd";
     ctx.font = "13px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(
-      instruction,
-      TX + CONFIG.TABLE_SIZE / 2,
-      TY + CONFIG.TABLE_SIZE + 24,
-    );
+    ctx.fillText(instruction, TX + CONFIG.TABLE_SIZE / 2, TY + CONFIG.TABLE_SIZE + 24);
   }
+}
 
-  // Transient message
+function drawTransientMessage() {
   if (State.message && performance.now() - State.messageTimer < CONFIG.MESSAGE_DISPLAY_DURATION) {
     ctx.fillStyle = "#ffb703";
     ctx.font = "bold 16px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(
-      State.message,
-      TX + CONFIG.TABLE_SIZE / 2,
-      TY + CONFIG.TABLE_SIZE + 50,
-    );
+    ctx.fillText(State.message, TX + CONFIG.TABLE_SIZE / 2, TY + CONFIG.TABLE_SIZE + 50);
   }
+}
+
+function drawHUD() {
+  State.badgeRects = [];
+  drawPlayerScores();
+  drawInstructions();
+  drawTransientMessage();
 }
 
 function getArrowAngleForDisplay() {
@@ -571,6 +539,18 @@ function getArrowLengthMultiplier() {
   return flickerHasBuff("long_shot") ? 2.0 : 1.0;
 }
 
+function drawFlickArrow() {
+  if (State.phase === "FLICK_ANGLE") {
+    const displayAngle = getArrowAngleForDisplay();
+    drawArrow(displayAngle, 80 * getArrowLengthMultiplier());
+  } else if (State.phase === "FLICK_POWER") {
+    const arrowLen =
+      CONFIG.ARROW_LENGTH_MIN +
+      calculatePowerRatio() * (CONFIG.ARROW_LENGTH_MAX - CONFIG.ARROW_LENGTH_MIN);
+    drawArrow(State.flickAngle, arrowLen);
+  }
+}
+
 function drawNormalScene(offsetX, offsetY, alpha) {
   const prevAlpha = ctx.globalAlpha;
   ctx.globalAlpha = alpha;
@@ -584,23 +564,9 @@ function drawNormalScene(offsetX, offsetY, alpha) {
 
   drawGateLine();
 
-  // Arrow (respect daze blink)
+  // Arrow + power bar (respect daze blink)
   if (!shouldDazeHide()) {
-    if (State.phase === "FLICK_ANGLE") {
-      const displayAngle = getArrowAngleForDisplay();
-      drawArrow(displayAngle, 80 * getArrowLengthMultiplier());
-    } else if (State.phase === "FLICK_POWER") {
-      const arrowLen =
-        CONFIG.ARROW_LENGTH_MIN +
-        ((State.currentPower - CONFIG.FLICK_POWER_MIN) /
-          (CONFIG.FLICK_POWER_MAX - CONFIG.FLICK_POWER_MIN)) *
-          (CONFIG.ARROW_LENGTH_MAX - CONFIG.ARROW_LENGTH_MIN);
-      drawArrow(State.flickAngle, arrowLen);
-    }
-  }
-
-  // Power bar (respect daze blink)
-  if (!shouldDazeHide()) {
+    drawFlickArrow();
     drawPowerBar();
   }
 
@@ -608,51 +574,38 @@ function drawNormalScene(offsetX, offsetY, alpha) {
   ctx.globalAlpha = prevAlpha;
 }
 
-function render() {
-  // Clear
-  ctx.fillStyle = "#1a1a2e";
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-  drawTable();
-
-  // Normal scene
-  drawNormalScene(0, 0, 1.0);
-
-  // Determine if impairment visual effects should apply
-  // In online mode, only the flicker sees their own impairments
-  const isMyFlick = !State.isOnline || State.myPlayerIndex === State.flickerIndex;
-
-  // Double Vision ghost layer
+function drawDoubleVision(isMyFlick) {
   if (
     isMyFlick &&
     flickerHasImpairment("double_vision") &&
-    [
-      "FLICK_ANGLE",
-      "FLICK_POWER",
-      "FLICK_ANIMATING",
-      "SELECTING_CHIP",
-    ].includes(State.phase)
+    CONFIG.PHASES_DOUBLE_VISION.includes(State.phase)
   ) {
-    drawNormalScene(
-      State.doubleVisionOffset.x,
-      State.doubleVisionOffset.y,
-      0.35,
-    );
+    drawNormalScene(State.doubleVisionOffset.x, State.doubleVisionOffset.y, 0.35);
   }
+}
 
-  drawHUD();
-
-  // Blackout overlay (drawn last so it covers everything except HUD)
+function drawBlackoutOverlay(isMyFlick) {
   if (
     isMyFlick &&
     flickerHasImpairment("blackout") &&
-    ["FLICK_ANGLE", "FLICK_POWER", "SELECTING_CHIP"].includes(State.phase)
+    CONFIG.PHASES_BLACKOUT.includes(State.phase)
   ) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
     ctx.fillRect(TX, TY, CONFIG.TABLE_SIZE, CONFIG.TABLE_SIZE);
   }
+}
 
-  // Badge tooltips (drawn last so they paint on top of everything)
+function render() {
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  drawTable();
+  drawNormalScene(0, 0, 1.0);
+
+  const isMyFlick = !State.isOnline || State.myPlayerIndex === State.flickerIndex;
+  drawDoubleVision(isMyFlick);
+  drawHUD();
+  drawBlackoutOverlay(isMyFlick);
   drawBadgeTooltip();
 }
 
@@ -660,18 +613,25 @@ function render() {
 // UPDATE (per frame)
 // ============================================================================
 
+function bounceOscillator(dt, speed) {
+  State.oscillator += State.oscillatorDir * speed * dt;
+  if (State.oscillator >= 1) {
+    State.oscillator = 1;
+    State.oscillatorDir = -1;
+  } else if (State.oscillator <= 0) {
+    State.oscillator = 0;
+    State.oscillatorDir = 1;
+  }
+}
+
+function calculatePowerRatio() {
+  return (State.currentPower - CONFIG.FLICK_POWER_MIN) /
+         (CONFIG.FLICK_POWER_MAX - CONFIG.FLICK_POWER_MIN);
+}
+
 function updateOscillators(dt) {
   if (State.phase === "FLICK_ANGLE") {
-    const speed = getEffectiveAngleSpeed();
-    State.oscillator += State.oscillatorDir * speed * dt;
-    if (State.oscillator >= 1) {
-      State.oscillator = 1;
-      State.oscillatorDir = -1;
-    }
-    if (State.oscillator <= 0) {
-      State.oscillator = 0;
-      State.oscillatorDir = 1;
-    }
+    bounceOscillator(dt, getEffectiveAngleSpeed());
 
     // Skilled Shooter narrows ACTUAL range; False Confidence does NOT
     const actualRange = flickerHasBuff("skilled_shooter")
@@ -686,17 +646,7 @@ function updateOscillators(dt) {
   }
 
   if (State.phase === "FLICK_POWER") {
-    const speed = getEffectivePowerSpeed();
-    State.oscillator += State.oscillatorDir * speed * dt;
-    if (State.oscillator >= 1) {
-      State.oscillator = 1;
-      State.oscillatorDir = -1;
-    }
-    if (State.oscillator <= 0) {
-      State.oscillator = 0;
-      State.oscillatorDir = 1;
-    }
-
+    bounceOscillator(dt, getEffectivePowerSpeed());
     State.currentPower =
       CONFIG.FLICK_POWER_MIN +
       State.oscillator * (CONFIG.FLICK_POWER_MAX - CONFIG.FLICK_POWER_MIN);
@@ -787,20 +737,45 @@ function update(now, dt) {
 
 // ============================================================================
 // GAME LOOP
+// Uses setTimeout for the update tick so physics continues in background tabs.
+// Rendering is decoupled and only runs when the tab is visible via rAF.
 // ============================================================================
 
-let lastTime = 0;
+const TICK_MS = 16; // ~60 Hz target for update loop
+let lastTime = performance.now();
+let renderScheduled = false;
+let tabVisible = true;
 
-function tick(timestamp) {
-  const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // cap at 50ms
-  lastTime = timestamp;
+// Track tab visibility so we can skip rendering (but keep updating)
+document.addEventListener("visibilitychange", () => {
+  tabVisible = !document.hidden;
+  if (tabVisible) {
+    // Reset lastTime to avoid a huge dt spike when returning to the tab
+    lastTime = performance.now();
+    scheduleRender();
+  }
+});
+
+function gameTick() {
+  const now = performance.now();
+  const dt = Math.min((now - lastTime) / 1000, 0.05); // cap at 50ms
+  lastTime = now;
 
   if (State.phase !== "SETUP" && State.phase !== "GAME_OVER") {
-    update(timestamp, dt);
-    render();
+    update(now, dt);
+    if (tabVisible) scheduleRender();
   }
 
-  requestAnimationFrame(tick);
+  setTimeout(gameTick, TICK_MS);
+}
+
+function scheduleRender() {
+  if (renderScheduled) return;
+  renderScheduled = true;
+  requestAnimationFrame(() => {
+    renderScheduled = false;
+    render();
+  });
 }
 
 // ============================================================================
@@ -921,12 +896,18 @@ function updatePlayerNameInputs() {
 playerCountInput.addEventListener("change", updatePlayerNameInputs);
 updatePlayerNameInputs();
 
-advancedToggle.addEventListener("click", () => {
-  advancedSettings.classList.toggle("visible");
-  advancedToggle.textContent = advancedSettings.classList.contains("visible")
-    ? "Hide Advanced Settings"
-    : "Advanced Settings";
-});
+function setupAdvancedToggle(btn, panel) {
+  if (!btn || !panel) return;
+  btn.addEventListener("click", () => {
+    panel.classList.toggle("visible");
+    btn.textContent = panel.classList.contains("visible")
+      ? "Hide Advanced Settings"
+      : "Advanced Settings";
+  });
+}
+
+setupAdvancedToggle(advancedToggle, advancedSettings);
+setupAdvancedToggle(onlineAdvToggle, onlineAdvSettings);
 
 // Wire up slider value displays
 function wireSliders(ids) {
@@ -944,38 +925,26 @@ function wireSliders(ids) {
 wireSliders(["frictionTable", "frictionChipTop", "frictionChipBottom", "dampingScale", "chipRestitution"]);
 wireSliders(["onFrictionTable", "onFrictionChipTop", "onFrictionChipBottom", "onDampingScale", "onChipRestitution"]);
 
-if (onlineAdvToggle && onlineAdvSettings) {
-  onlineAdvToggle.addEventListener("click", () => {
-    onlineAdvSettings.classList.toggle("visible");
-    onlineAdvToggle.textContent = onlineAdvSettings.classList.contains("visible")
-      ? "Hide Advanced Settings"
-      : "Advanced Settings";
-  });
+const SETTINGS_FIELDS = ["frictionTable", "frictionChipTop", "frictionChipBottom", "dampingScale", "chipRestitution"];
+
+function readAdvancedSettings(prefix) {
+  const config = {};
+  for (const field of SETTINGS_FIELDS) {
+    const id = prefix ? `${prefix}${field[0].toUpperCase()}${field.slice(1)}` : field;
+    const el = document.getElementById(id);
+    if (el) config[field] = parseFloat(el.value);
+  }
+  return config;
 }
 
 startBtn.addEventListener("click", () => {
-  // Read player names
   const nameInputs = playerNamesContainer.querySelectorAll("input");
   const players = [];
   nameInputs.forEach((input, i) => {
-    players.push({
-      name: input.value.trim() || `Player ${i + 1}`,
-      failures: 0,
-      impairments: [],
-      onFireBuffs: [],
-      streak: 0,
-    });
+    players.push(createPlayer(input.value.trim() || `Player ${i + 1}`));
   });
 
-  // Read advanced settings
-  applyConfig({
-    frictionTable:      parseFloat(document.getElementById("frictionTable").value),
-    frictionChipTop:    parseFloat(document.getElementById("frictionChipTop").value),
-    frictionChipBottom: parseFloat(document.getElementById("frictionChipBottom").value),
-    dampingScale:       parseFloat(document.getElementById("dampingScale").value),
-    chipRestitution:    parseFloat(document.getElementById("chipRestitution").value),
-  });
-
+  applyConfig(readAdvancedSettings(""));
   startGame(players);
 });
 
@@ -985,20 +954,7 @@ createRoomBtn.addEventListener("click", () => {
   const name = (onlineNameInput.value || "").trim() || "Player";
   if (onlineError) onlineError.textContent = "";
 
-  // Read online advanced settings for config
-  const config = {};
-  const onFrictionTable = document.getElementById("onFrictionTable");
-  const onFrictionChipTop = document.getElementById("onFrictionChipTop");
-  const onFrictionChipBottom = document.getElementById("onFrictionChipBottom");
-  const onDampingScale = document.getElementById("onDampingScale");
-  const onChipRestitution = document.getElementById("onChipRestitution");
-  if (onFrictionTable) config.frictionTable = parseFloat(onFrictionTable.value);
-  if (onFrictionChipTop) config.frictionChipTop = parseFloat(onFrictionChipTop.value);
-  if (onFrictionChipBottom) config.frictionChipBottom = parseFloat(onFrictionChipBottom.value);
-  if (onDampingScale) config.dampingScale = parseFloat(onDampingScale.value);
-  if (onChipRestitution) config.chipRestitution = parseFloat(onChipRestitution.value);
-
-  net.createRoom(name, config);
+  net.createRoom(name, readAdvancedSettings("on"));
 });
 
 joinRoomBtn.addEventListener("click", () => {
@@ -1115,14 +1071,7 @@ function startGameOnline(players, config, tosserIndex, flickerIndex) {
   // Apply server config
   if (config) applyConfig(config);
 
-  // Build player objects
-  State.players = players.map((p) => ({
-    name: p.name,
-    failures: 0,
-    impairments: [],
-    onFireBuffs: [],
-    streak: 0,
-  }));
+  State.players = players.map((p) => createPlayer(p.name));
 
   State.tosserIndex = tosserIndex;
   State.flickerIndex = flickerIndex;
@@ -1148,7 +1097,7 @@ function init() {
     { showView, applyConfig, renderScoreboard, startGameOnline },
   );
   net.connect();
-  requestAnimationFrame(tick);
+  gameTick();
 }
 
 init();

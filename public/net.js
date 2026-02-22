@@ -3,6 +3,8 @@
 // ES module: import * as net from './net.js';
 // ============================================================================
 
+import { CONFIG } from './config.js';
+
 const NET = {
   ws: null,
   clientId: null,
@@ -94,7 +96,7 @@ export function connect() {
           });
         }
       }
-    }, 2000);
+    }, CONFIG.NET_RECONNECT_DELAY);
   };
 
   ws.onerror = () => {
@@ -267,7 +269,7 @@ export function startPhysicsStreaming(getChipPositions) {
   NET.physicsFrameInterval = setInterval(() => {
     const chips = getChipPositions();
     if (chips) sendToServer({ type: "physics_frame", chips });
-  }, 66); // ~15fps
+  }, CONFIG.PHYSICS_STREAM_INTERVAL);
 }
 
 export function stopPhysicsStreaming() {

@@ -48,13 +48,11 @@ export function createWalls() {
   for (const def of wallDefs) {
     const bodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(def.x, def.y);
     const body = world.createRigidBody(bodyDesc);
-    // Walls: group 0, collides with all groups
-    // Membership = 0x0001, Filter = 0xFFFF
     const colliderDesc = RAPIER.ColliderDesc.cuboid(def.hw, def.hh)
       .setFriction(CONFIG.FRICTION_TABLE)
       .setRestitution(CONFIG.CHIP_RESTITUTION)
       .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-      .setCollisionGroups(0x0001ffff);
+      .setCollisionGroups(CONFIG.COLLISION_GROUP_WALLS);
     const collider = world.createCollider(colliderDesc, body);
     wallBodies.push(body);
     wallColliders.push(collider);
@@ -82,16 +80,13 @@ export function createChipBody(x, y, topUp) {
     .setCcdEnabled(true);
   const body = world.createRigidBody(bodyDesc);
 
-  // Set density so total mass ≈ 1.0 (area = π*r² ≈ 1257, so density ≈ 1/1257)
-  // Chips: group 1, collides with all groups (walls=group0, other chips=group1)
-  // Membership = 0x0002, Filter = 0xFFFF
   const colliderDesc = RAPIER.ColliderDesc.ball(CONFIG.CHIP_RADIUS)
     .setDensity(1.0 / (Math.PI * CONFIG.CHIP_RADIUS * CONFIG.CHIP_RADIUS))
     .setFriction(chipFriction)
     .setFrictionCombineRule(RAPIER.CoefficientCombineRule.Multiply)
     .setRestitution(CONFIG.CHIP_RESTITUTION)
     .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
-    .setCollisionGroups(0x0002ffff);
+    .setCollisionGroups(CONFIG.COLLISION_GROUP_CHIPS);
   const collider = world.createCollider(colliderDesc, body);
 
   return { body, collider, topUp, flicked: false, eligible: true };

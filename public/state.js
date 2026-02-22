@@ -49,6 +49,26 @@ export const State = {
 // IMPAIRMENT & BUFF HELPERS
 // ============================================================================
 
+export function createPlayer(name) {
+  return { name, failures: 0, impairments: [], onFireBuffs: [], streak: 0 };
+}
+
+export function applyChipStates(chipStates) {
+  if (!chipStates) return;
+  for (let i = 0; i < State.chips.length && i < chipStates.length; i++) {
+    State.chips[i].flicked = chipStates[i].flicked;
+    State.chips[i].eligible = chipStates[i].eligible;
+  }
+}
+
+export function getImpairmentById(id) {
+  return IMPAIRMENTS.find((i) => i.id === id);
+}
+
+export function getBuffById(id) {
+  return BUFFS.find((b) => b.id === id);
+}
+
 export function getFlicker() {
   if (State.flickerIndex < 0 || State.flickerIndex >= State.players.length) return null;
   return State.players[State.flickerIndex];
@@ -343,7 +363,7 @@ export function executeFlick() {
   if (flickerHasBuff("jump_shot")) {
     // Group 1, filter to only collide with group 0 (walls)
     // Membership bits = 0x0002, Filter bits = 0x0001
-    chip.collider.setCollisionGroups(0x00020001);
+    chip.collider.setCollisionGroups(CONFIG.COLLISION_GROUP_JUMP_SHOT);
   }
 
   const impulse = {
@@ -384,51 +404,34 @@ export function executeFlick() {
 // FLICK EVALUATION
 // ============================================================================
 
+function getFlickFailureReason() {
+  const ignoreTouch = flickerHasBuff("jump_shot");
+  const ignoreWall = flickerHasBuff("hand_of_god");
+
+  if (State.touchedGateChip && !ignoreTouch) return "Touched a gate chip!";
+  if (State.hitWall && !ignoreWall) return "Chip hit the wall!";
+  if (!State.passedThroughGate) return "Missed the gate!";
+  return ""; // empty = success
+}
+
 export function evaluateFlick() {
   physics.removeGateSensor();
 
-  // Jump Shot: ignore gate chip touching
-  const ignoreTouch = flickerHasBuff("jump_shot");
-  // Hand of God: ignore wall hits
-  const ignoreWall = flickerHasBuff("hand_of_god");
+  const reason = getFlickFailureReason();
+  const success = reason === "";
 
-  const success = !(State.touchedGateChip && !ignoreTouch) &&
-                  !(State.hitWall && !ignoreWall) &&
-                  State.passedThroughGate;
-
-  // In online mode, the active flicker sends the result to the server
   if (State.isOnline && net.isMyTurn(State.flickerIndex)) {
     net.stopPhysicsStreaming();
     const finalPositions = State.chips.map((c) => {
       const p = c.body.translation();
       return { x: p.x, y: p.y, topUp: c.topUp };
     });
-
-    let reason = "";
-    if (State.touchedGateChip && !ignoreTouch) {
-      reason = "Touched a gate chip!";
-    } else if (State.hitWall && !ignoreWall) {
-      reason = "Chip hit the wall!";
-    } else if (!State.passedThroughGate) {
-      reason = "Missed the gate!";
-    }
-
     net.sendFlickResult(success, reason, State.selectedChipIndex, finalPositions);
-    // Wait for flick_result_broadcast to update state
     return;
   }
 
-  // Local play (or online spectator should not reach here)
   if (!State.isOnline) {
-    if (State.touchedGateChip && !ignoreTouch) {
-      onFlickFailure("Touched a gate chip!");
-    } else if (State.hitWall && !ignoreWall) {
-      onFlickFailure("Chip hit the wall!");
-    } else if (!State.passedThroughGate) {
-      onFlickFailure("Missed the gate!");
-    } else {
-      onFlickSuccess();
-    }
+    success ? onFlickSuccess() : onFlickFailure(reason);
   }
 }
 
@@ -445,7 +448,7 @@ export function onFlickSuccess() {
 
   // Restore collision groups if jump_shot was active
   const chip = State.chips[State.selectedChipIndex];
-  chip.collider.setCollisionGroups(0x0002ffff);
+  chip.collider.setCollisionGroups(CONFIG.COLLISION_GROUP_CHIPS);
 
   // The flicked chip is ineligible for the next turn only;
   // all other chips become eligible again
@@ -496,7 +499,7 @@ export function onFlickFailure(reason) {
 
   // Restore collision groups if jump_shot was active
   const chip = State.chips[State.selectedChipIndex];
-  chip.collider.setCollisionGroups(0x0002ffff);
+  chip.collider.setCollisionGroups(CONFIG.COLLISION_GROUP_CHIPS);
 
   player.failures++;
   player.streak = 0;
